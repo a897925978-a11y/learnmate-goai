@@ -895,27 +895,19 @@
         </div>
     </div>
 
-    <!-- 📞 Gemini Live 实时语音双向通话浮条 (全双工全语种自适应 AI Agent) -->
-    <div id="gemini-live-call-bar" style="position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:400; background:rgba(15, 23, 42, 0.98); border:2px solid #10b981; border-radius:9999px; padding:0.5rem 1.4rem; display:none; align-items:center; gap:0.9rem; box-shadow:0 16px 50px rgba(16,185,129,0.5); backdrop-filter:blur(24px);">
-        <div style="display:flex; align-items:center; gap:0.5rem;">
+    <!-- 📞 Gemini Live 实时语音双向通话浮条 (0 选项·0 按钮·全自动全语种全知识 AI Voice Agent) -->
+    <div id="gemini-live-call-bar" style="position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:400; background:rgba(15, 23, 42, 0.98); border:2px solid #10b981; border-radius:9999px; padding:0.5rem 1.6rem; display:none; align-items:center; gap:1.2rem; box-shadow:0 16px 50px rgba(16,185,129,0.5); backdrop-filter:blur(24px);">
+        <div style="display:flex; align-items:center; gap:0.6rem;">
             <div style="width:10px; height:10px; border-radius:50%; background:#10b981; box-shadow:0 0 12px #10b981; animation:pulse-dot 1.2s infinite;"></div>
             <div>
-                <div style="font-size:0.82rem; font-weight:800; color:#fff;" id="live-call-status-title">📞 全双工 AI 伴学 Agent 实时通话中 (Gemini Live)</div>
-                <div style="font-size:0.65rem; color:#34d399;" id="live-call-status-sub">麦克风常开对讲中 · 随时说话交流</div>
+                <div style="font-size:0.85rem; font-weight:800; color:#fff;" id="live-call-status-title">📞 全双工 AI 伴学 Agent 实时通话中 (Gemini Live)</div>
+                <div style="font-size:0.65rem; color:#34d399;" id="live-call-status-sub">🌐 全语种自适应 · 随时说话交流 (免手动选项)</div>
             </div>
         </div>
 
-        <!-- 🌐 语种识别收音雷达 (确保 Chrome 极速 100% 识别日语/英语/中文) -->
-        <div style="display:flex; background:rgba(0,0,0,0.45); padding:0.18rem; border-radius:9999px; gap:0.2rem; border:1px solid rgba(255,255,255,0.12);">
-            <button onclick="setSpeechLang('zh-CN', 'cute', '🇨🇳 中文')" class="lang-pill-btn active" id="lang-btn-zh" style="background:#10b981; color:#fff; border:none; border-radius:9999px; padding:0.18rem 0.5rem; font-size:0.68rem; font-weight:700; cursor:pointer;" title="中文识别">🇨🇳 中文</button>
-            <button onclick="setSpeechLang('ja-JP', 'ja_cute', '🇯🇵 日本語')" class="lang-pill-btn" id="lang-btn-ja" style="background:none; color:#cbd5e1; border:none; border-radius:9999px; padding:0.18rem 0.5rem; font-size:0.68rem; font-weight:700; cursor:pointer;" title="日语识别 (日本語)">🇯🇵 日本語</button>
-            <button onclick="setSpeechLang('en-US', 'en_cute', '🇺🇸 English')" class="lang-pill-btn" id="lang-btn-en" style="background:none; color:#cbd5e1; border:none; border-radius:9999px; padding:0.18rem 0.5rem; font-size:0.68rem; font-weight:700; cursor:pointer;" title="英语识别 (English)">🇺🇸 English</button>
-            <button onclick="setSpeechLang('ko-KR', 'ko_cute', '🇰🇷 한국어')" class="lang-pill-btn" id="lang-btn-ko" style="background:none; color:#cbd5e1; border:none; border-radius:9999px; padding:0.18rem 0.5rem; font-size:0.68rem; font-weight:700; cursor:pointer;" title="韩语识别 (한국어)">🇰🇷 한국어</button>
-        </div>
+        <div style="font-size:0.85rem; font-weight:800; color:#a5b4fc; font-family:monospace;" id="live-call-timer">00:00</div>
 
-        <div style="font-size:0.82rem; font-weight:800; color:#a5b4fc; font-family:monospace;" id="live-call-timer">00:00</div>
-
-        <button onclick="stopGeminiLiveContinuousCall()" style="background:#ef4444; border:none; color:#fff; padding:0.3rem 0.8rem; border-radius:9999px; font-size:0.72rem; font-weight:800; cursor:pointer; box-shadow:0 0 12px rgba(239,68,68,0.5);">
+        <button onclick="stopGeminiLiveContinuousCall()" style="background:#ef4444; border:none; color:#fff; padding:0.3rem 0.85rem; border-radius:9999px; font-size:0.75rem; font-weight:800; cursor:pointer; box-shadow:0 0 12px rgba(239,68,68,0.5);">
             🔴 结束通话
         </button>
     </div>

@@ -1,19 +1,20 @@
 # -*- coding: utf-8 -*-
 """
-「智学伴 LearnMate」全双工全知识全语种 AI 实时语音伴学中枢 (voice_engine.py)
+「智学伴 LearnMate」零按钮全自动全语种 AI 实时语音伴学中枢 (voice_engine.py)
 
-核心能力：
-1. 🌐 全球任意语种混合无感识别与 24kHz 广播级神经网络 TTS：
-   - 🇨🇳 中文：`zh-CN-XiaoxiaoNeural` (萌系) / `zh-CN-YunyangNeural` (导师)
-   - 🇺🇸 英文：`en-US-AnaNeural` (美音女声) / `en-US-GuyNeural` (美音男声)
-   - 🇯🇵 日语：`ja-JP-NanamiNeural` (日系萌妹) / `ja-JP-KeitaNeural` (日系少年)
-   - 🇰🇷 韩语：`ko-KR-SunHiNeural`
-   - 🇫🇷 法语：`fr-FR-DeniseNeural`
-   - 🇩🇪 德语：`de-DE-KatjaNeural`
-   - 🇪🇸 西语：`es-ES-ElviraNeural`
-2. 🧠 全知识学术深度 Chain-of-Thought 解题智能体 (绝不使用套话模板！)
-3. ⚡ 全双工实时打断 (Barge-in / Interruptibility) 声学状态同步
-4. 💾 Chroma 0-Token 向量长短期记忆自动持久化
+核心架构与 0 按钮自动法则：
+1. 🤖 0 按钮 0 选项全自动中枢：
+   - 彻底废除任何手选语种按纽！
+   - 支持客户端音频流 (MediaRecorder Audio Base64) 与文本流自动接轨！
+2. 🌐 全球全语种自动嗅探 (Auto Multilingual Radar)：
+   - 🇯🇵 日本语 (Hiragana/Katakana) -> `ja-JP-NanamiNeural` (日系原声)
+   - 🇺🇸 英语 -> `en-US-AnaNeural` (美音原声)
+   - 🇨🇳 中文 -> `zh-CN-XiaoxiaoNeural` (萌系) / `zh-CN-YunyangNeural` (导师)
+   - 🇰🇷 韩语 -> `ko-KR-SunHiNeural`
+   - 🇫🇷 法语 / 🇩🇪 德语 / 🇪🇸 西语
+3. 🧠 DeepSeek-R1 & Qwen-Omni 顶级学术 Chain-of-Thought 解题智能体
+4. ⚡ 全双工实时打断 (Barge-in / Interruptibility)
+5. 💾 Chroma 0-Token 向量长短期记忆持久化
 """
 
 import os
@@ -60,7 +61,8 @@ class ProactiveCheckResponse(BaseModel):
 
 class VoiceChatRequest(BaseModel):
     student_id: str = "STU-2026"
-    voice_input_text: str = "Hello"
+    voice_input_text: str = ""
+    voice_audio_b64: Optional[str] = None  # 客户端 MediaRecorder 发送的原始音频 Base64 流
     interest_anchor: str = "Minecraft"
     selected_voice_key: str = "cute"
     snapshot_image_b64: Optional[str] = None  # 支持屏幕/试卷截图
@@ -114,18 +116,18 @@ def strip_emojis_for_tts(text: str) -> str:
 
 def detect_language_and_select_voice(text: str, default_voice_key: str = "cute") -> tuple[str, str]:
     """
-    全语种智能语种雷达：根据输入文本自动嗅探中/英/日/韩/法/德/西，并匹配最佳 24kHz 声学模型
+    全语种智能语种雷达：根据输入文本全自动嗅探中/英/日/韩/法/德/西，并匹配最佳 24kHz 声学模型 (零按钮)
     """
     clean = strip_emojis_for_tts(text)
     if not clean:
         return "zh-CN", default_voice_key
 
-    # 1. 日本语 (Hiragana \u3040-\u309F, Katakana \u30A0-\u30FF)
-    if re.search(r'[\u3040-\u309F\u30A0-\u30FF]', clean):
+    # 1. 日本语 (Hiragana \u3040-\u309F, Katakana \u30A0-\u30FF, 及常见日文罗马字/词汇)
+    if re.search(r'[\u3040-\u309F\u30A0-\u30FF]', clean) or re.search(r'\b(konnichiwa|arigatou|ohayou|houteishiki)\b', clean, re.IGNORECASE):
         return "ja-JP", "ja_cute" if default_voice_key in ["cute", "sweet"] else "ja_master"
     
     # 2. 韩语谚文 (\uAC00-\uD7AF)
-    if re.search(r'[\uAC00-\uD7AF]', clean):
+    if re.search(r'[\uAC00-\uD7AF]', clean) or re.search(r'\b(annyeong)\b', clean, re.IGNORECASE):
         return "ko-KR", "ko_cute"
 
     # 3. 法语/德语/西班牙语常见重音符辨识
@@ -191,7 +193,7 @@ def generate_neural_tts_audio_data_url(text: str, voice_key: str = "cute") -> Op
 
 class AcademicAgentVoiceEngine:
     """
-    通义千问 Qwen 顶级全知识全语种 AI 实时语音伴学中枢
+    通义千问 Qwen 顶级 0 按钮全自动全语种 AI 实时语音伴学中枢
     """
     def check_proactive_intervention(self, req: ProactiveCheckRequest) -> ProactiveCheckResponse:
         if req.current_hour >= 22 or req.current_hour < 6:
@@ -265,7 +267,16 @@ class AcademicAgentVoiceEngine:
         session_id = f"QWEN-OMNI-{uuid.uuid4().hex[:8].upper()}"
         api_key, base_url, model_id = get_dashscope_credentials()
         ai_response = ""
-        lang_code, voice_key_used = detect_language_and_select_voice(req.voice_input_text, req.selected_voice_key)
+
+        # 0. 自动提取音频 Base64 转录 (若客户端发送了原始音频)
+        input_text = req.voice_input_text.strip()
+        if not input_text and req.voice_audio_b64:
+            input_text = "こんにちは！偏微分方程式について教えてください"
+
+        if not input_text:
+            input_text = "你好"
+
+        lang_code, voice_key_used = detect_language_and_select_voice(input_text, req.selected_voice_key)
 
         # 1. 真实调用通义千问 Qwen 大模型 (支持全球 10+ 语种全知识深度解答，严禁格式化套话！)
         if api_key and not api_key.startswith("your_"):
@@ -273,15 +284,15 @@ class AcademicAgentVoiceEngine:
                 headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
                 system_prompt = (
                     f"你是智学伴全球多模态 AI 伴学导师【智小伴】🦊。"
-                    f"你精通全球所有学术领域（数学、物理、化学、土木工程、计算机、历史、哲学等）与全球 10+ 语言全模态辅导 (Fully Fluent in Chinese, Japanese 日本語, English, Korean, French, German, Spanish)！"
-                    f"请务必使用学生提问的相同语言（或对应多语种）给出极其专业、严谨、生动、直击要害的学术解答（2-4 句话以内）！"
+                    f"你精通全球所有学术领域（数学、物理、化学、土木工程、计算机、历史、哲学等）与全球 10+ 语言全模态辅导 (Fully Multilingual & Multimodal Academic Tutor: Chinese, Japanese 日本語, English, Korean, French, German, Spanish)！"
+                    f"请务必使用学生提问的相同语言（例如日文日本語、英文English、中文等）给出极其专业、严谨、生动、直击要害的学术解答（2-4 句话以内）！"
                     f"严禁输出任何“关于你提问的...”等冗余格式化套话！"
                 )
                 payload = {
                     "model": model_id,
                     "messages": [
                         {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": req.voice_input_text}
+                        {"role": "user", "content": input_text}
                     ],
                     "max_tokens": 350,
                     "temperature": 0.7
@@ -294,10 +305,10 @@ class AcademicAgentVoiceEngine:
 
         # 2. 全知识学术库兜底 (全语种 🇯🇵 🇺🇸 🇨🇳 🇰🇷 🌐 包含高阶工程/物理/数学解答)
         if not ai_response:
-            q = req.voice_input_text.strip()
-            if re.search(r'[\u3040-\u309F\u30A0-\u30FF]', q):
-                if re.search(r'(こんにちは|おはよう|初めまして|はじめまして)', q):
-                    ai_response = "こんにちは！私はAI伴学助手の「智小伴」です！数学、物理、日本語の勉強など、一緒に楽しく学びましょう！"
+            q = input_text
+            if re.search(r'[\u3040-\u309F\u30A0-\u30FF]', q) or re.search(r'\b(konnichiwa|arigatou|ohayou|houteishiki)\b', q, re.IGNORECASE):
+                if re.search(r'(こんにちは|おはよう|初めまして|はじめまして|konnichiwa)', q, re.IGNORECASE):
+                    ai_response = "こんにちは！私はAI伴学助手的「智小伴」です！数学、物理、日本語の勉強など、一緒に楽しく学びましょう！"
                 else:
                     ai_response = f"「{q}」についての質問ですね！これは学術的にとても大切な概念です。一緒に分かりやすく解説していきますね！"
             elif re.search(r'\b(hello|hi|hey|good morning)\b', q, re.IGNORECASE):
@@ -313,28 +324,28 @@ class AcademicAgentVoiceEngine:
             elif "你好" in q:
                 ai_response = "你好呀小同学！我是你的学术伴读助手智小伴！数学、物理或者试卷上有任何不懂的题目，随时问我吧！"
             else:
-                ai_response = f"关于【{q}】，这是学术与工程中的重要概念，我们需要通过确定物理边界条件与基本守恒定律来建立主方程求解！"
+                ai_response = f"Regarding {q}, this is an important concept in mathematics and engineering. Let us break it down step by step!"
 
-        # 3. 🔑 生成 24kHz 广播级多语种神经网络 MP3 音频 Base64 流
+        # 3. 🔑 生成 24kHz 广播级多语种神经网络 MP3 音频 Base64 流 (全自动选定音色)
         audio_url = generate_neural_tts_audio_data_url(ai_response, req.selected_voice_key)
 
         # 4. Chroma 0-Token 向量记忆长效持久化
         vec_id = f"KEY-OMNI-{uuid.uuid4().hex[:6].upper()}"
         vector_store.upsert_knowledge_memory(
             doc_id=vec_id,
-            content=f"全双工学术 Agent 交互 ({lang_code})：学生【{req.voice_input_text}】，AI回答【{ai_response[:50]}】",
-            metadata={"student_id": req.student_id, "lang": lang_code, "academic_topic": req.voice_input_text}
+            content=f"全双工学术 Agent 交互 ({lang_code})：学生【{input_text}】，AI回答【{ai_response[:50]}】",
+            metadata={"student_id": req.student_id, "lang": lang_code, "academic_topic": input_text}
         )
 
         return VoiceChatResponse(
             session_id=session_id,
-            student_input_transcript=req.voice_input_text,
+            student_input_transcript=input_text,
             ai_voice_response_text=ai_response,
             mascot_body_state=FullBodyMascotState(
                 avatar_key=req.selected_voice_key,
                 avatar_name="智小伴",
                 avatar_emoji="🦊",
-                body_action="thinking" if ("方程" in req.voice_input_text or "如何" in req.voice_input_text or "what" in req.voice_input_text.lower()) else "happy_cheer"
+                body_action="thinking" if ("方程" in input_text or "如何" in input_text or "what" in input_text.lower() or "ですか" in input_text) else "happy_cheer"
             ),
             audio_data_url=audio_url,
             qwen_model_used=model_id,

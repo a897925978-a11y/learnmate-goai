@@ -645,8 +645,95 @@ class LearnMateNativeApp(ctk.CTk):
             ctk.CTkLabel(row, text=metric, font=ctk.CTkFont(size=14)).pack(side="left", padx=15, pady=12)
             ctk.CTkLabel(row, text=status, font=ctk.CTkFont(size=14, weight="bold"), text_color="#38bdf8").pack(side="right", padx=15, pady=12)
 
+# ==============================================================================
+# 🚀 极客酷炫暗黑动态【启动加载提示框】(Native Splash Screen Window)
+# ==============================================================================
+class NativeSplashScreen(ctk.CTkToplevel):
+    """
+    极客酷炫暗黑动态【启动加载提示框】(Splash Screen Window)
+    在 0.05 秒内秒速弹出，显示动感进度条与提示，全平滑无感过渡至主应用窗口，彻底消灭黑框！
+    """
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.parent = parent
+        self.overrideredirect(True)  # 无边框沉浸式窗口
+        self.attributes("-topmost", True)
+        
+        # 居中窗口 520x320
+        sw = self.winfo_screenwidth()
+        sh = self.winfo_screenheight()
+        w, h = 520, 320
+        x = (sw - w) // 2
+        y = (sh - h) // 2
+        self.geometry(f"{w}x{h}+{x}+{y}")
+        self.configure(fg_color="#0f172a")
+
+        # 边框美化卡片
+        card = ctk.CTkFrame(self, fg_color="#0f172a", corner_radius=16, border_width=2, border_color="#38bdf8")
+        card.pack(fill="both", expand=True, padx=2, pady=2)
+
+        # 1. 🦊 动漫伙伴 Logo & Title
+        title_label = ctk.CTkLabel(
+            card, 
+            text="🦊 智学伴 LearnMate AI Agent OS v3.0", 
+            font=ctk.CTkFont(size=20, weight="bold"),
+            text_color="#38bdf8"
+        )
+        title_label.pack(pady=(35, 8))
+
+        subtitle = ctk.CTkLabel(
+            card,
+            text="⚡ CPU 多核算力并行引擎加速中 (GPU 0占用防护)",
+            font=ctk.CTkFont(size=13),
+            text_color="#94a3b8"
+        )
+        subtitle.pack(pady=(0, 25))
+
+        # 2. 动态进度条
+        self.progress = ctk.CTkProgressBar(card, width=420, height=12, corner_radius=6, progress_color="#6366f1", fg_color="#1e293b")
+        self.progress.pack(pady=10)
+        self.progress.set(0.0)
+
+        # 3. 状态变化标签
+        self.status_lbl = ctk.CTkLabel(
+            card,
+            text="🟢 正在预热 Qwen-Omni 语音与 8 大 Agent 引擎...",
+            font=ctk.CTkFont(size=12),
+            text_color="#10b981"
+        )
+        self.status_lbl.pack(pady=(12, 0))
+
+        # 启动进度平滑更新动画
+        self.progress_val = 0.0
+        self.update_progress()
+
+    def update_progress(self):
+        self.progress_val += 0.06
+        if self.progress_val > 1.0:
+            self.progress_val = 1.0
+
+        self.progress.set(self.progress_val)
+
+        if self.progress_val < 0.4:
+            self.status_lbl.configure(text="🟢 正在加载 2D 动漫伙伴「智小伴」与矢量 Canvas...")
+        elif self.progress_val < 0.8:
+            self.status_lbl.configure(text="⚡ 正在激活 CPU 多核并行算力加速引擎...")
+        else:
+            self.status_lbl.configure(text="✨ 加载完成！正在平滑呈现主界面...")
+
+        if self.progress_val < 1.0:
+            self.after(25, self.update_progress)
+        else:
+            self.after(150, self.finish_splash)
+
+    def finish_splash(self):
+        self.destroy()
+        self.parent.deiconify()  # 平滑显现主窗口
+
 def main():
     app_gui = LearnMateNativeApp()
+    app_gui.withdraw()  # 先隐藏主窗口
+    splash = NativeSplashScreen(app_gui)  # 秒出加载提示框
     app_gui.mainloop()
 
 if __name__ == "__main__":

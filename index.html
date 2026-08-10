@@ -42,6 +42,42 @@
             background-attachment: fixed;
         }
 
+        /* 📞 沉浸式 Gemini Live 实时语音通话 3D 脉冲球 */
+        .voice-call-orb-container {
+            position: relative;
+            width: 160px;
+            height: 160px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 1.5rem 0;
+        }
+        .voice-call-orb {
+            width: 110px;
+            height: 110px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, #34d399, #10b981, #059669);
+            box-shadow: 0 0 60px rgba(16, 185, 129, 0.8), inset 0 0 25px rgba(255,255,255,0.6);
+            animation: orb-pulse 2s ease-in-out infinite alternate;
+        }
+        .voice-call-ring {
+            position: absolute;
+            border-radius: 50%;
+            border: 2px solid rgba(16, 185, 129, 0.45);
+            animation: ring-expand 2.5s cubic-bezier(0, 0.2, 0.8, 1) infinite;
+        }
+        .ring-1 { width: 130px; height: 130px; animation-delay: 0s; }
+        .ring-2 { width: 160px; height: 160px; animation-delay: 0.9s; }
+
+        @keyframes orb-pulse {
+            0% { transform: scale(0.92); box-shadow: 0 0 35px rgba(16, 185, 129, 0.5); }
+            100% { transform: scale(1.12); box-shadow: 0 0 85px rgba(16, 185, 129, 1); }
+        }
+        @keyframes ring-expand {
+            0% { transform: scale(0.75); opacity: 1; }
+            100% { transform: scale(1.75); opacity: 0; }
+        }
+
         /* 顶部高保真导航栏 */
         header {
             padding: 1rem 2rem;
@@ -916,6 +952,47 @@
         </button>
     </div>
 
+    <!-- 📞 Gemini Live 沉浸式全屏 3D AI 实时语音通话大屏 (100% 极简流式体验) -->
+    <div id="live-voice-call-overlay" style="position:fixed; inset:0; z-index:10000; background:rgba(9, 13, 22, 0.96); backdrop-filter:blur(32px); display:none; flex-direction:column; align-items:center; justify-content:space-between; padding:2.5rem; color:#fff;">
+        
+        <!-- 顶部状态栏 -->
+        <div style="display:flex; justify-content:space-between; align-items:center; width:100%; max-width:850px;">
+            <div style="display:flex; align-items:center; gap:0.75rem;">
+                <div style="width:12px; height:12px; border-radius:50%; background:#10b981; box-shadow:0 0 15px #10b981; animation:pulse-dot 1.2s infinite;"></div>
+                <div>
+                    <div style="font-size:1.1rem; font-weight:800; color:#fff;">📞 智小伴 Gemini Live 全双工实时通话中</div>
+                    <div style="font-size:0.8rem; color:#34d399;" id="live-call-sub-status">🌐 全语种收音雷达已开启 · 随时说话 (无感全自动)</div>
+                </div>
+            </div>
+            <div style="background:rgba(255,255,255,0.08); padding:0.4rem 1rem; border-radius:9999px; font-family:monospace; font-size:1rem; font-weight:800; border:1px solid rgba(255,255,255,0.15);" id="overlay-call-timer">00:00</div>
+        </div>
+
+        <!-- 中间 3D 极光语音脉冲球与动漫萌宠 -->
+        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1.5rem; margin:auto 0; width:100%; max-width:700px;">
+            <div style="font-size:5rem; filter:drop-shadow(0 0 25px rgba(16,185,129,0.6)); animation:float-idle 3s ease-in-out infinite;" id="overlay-mascot-avatar">🦊</div>
+            
+            <div class="voice-call-orb-container">
+                <div class="voice-call-orb" id="voice-call-orb"></div>
+                <div class="voice-call-ring ring-1"></div>
+                <div class="voice-call-ring ring-2"></div>
+            </div>
+
+            <!-- 实时双语对讲字幕流 -->
+            <div style="width:100%; text-align:center; background:rgba(15, 23, 42, 0.85); border:1.5px solid rgba(16,185,129,0.4); border-radius:24px; padding:1.5rem 2rem; box-shadow:0 20px 50px rgba(0,0,0,0.6);">
+                <div style="font-size:0.8rem; color:#34d399; font-weight:700; margin-bottom:0.4rem;" id="overlay-speaker-label">🎙️ 正在聆听您的说话...</div>
+                <div style="font-size:1.25rem; font-weight:700; color:#f8fafc; line-height:1.6;" id="overlay-live-transcript">
+                    “麦克风已就绪，请随时对答对讲...”
+                </div>
+            </div>
+        </div>
+
+        <!-- 底部通话控制栏 -->
+        <div style="display:flex; align-items:center; gap:1.8rem;">
+            <button class="btn" style="width:56px; height:56px; border-radius:50%; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); font-size:1.5rem; color:#fff; cursor:pointer;" onclick="toggleLiveCallMute()" id="live-call-mute-btn" title="静音麦克风">🎤</button>
+            <button class="btn btn-danger" style="padding:0.9rem 2.8rem; border-radius:9999px; font-size:1.15rem; font-weight:800; box-shadow:0 0 30px rgba(239,68,68,0.6);" onclick="stopGeminiLiveContinuousCall()">🔴 结束通话</button>
+        </div>
+    </div>
+
     <!-- 国家心理热线高危弹窗 -->
     <div class="modal-backdrop" id="crisis-modal">
         <div class="modal-card" style="border: 2px solid var(--danger); text-align:center;">
@@ -1269,6 +1346,7 @@
 
         function startGeminiLiveContinuousCall() {
             isContinuousCallActive = true;
+            document.getElementById('live-voice-call-overlay').style.display = 'flex';
             document.getElementById('gemini-live-call-bar').style.display = 'flex';
 
             const btn = document.getElementById('floating-call-btn');
@@ -1284,21 +1362,32 @@
                 liveCallSeconds++;
                 const mins = String(Math.floor(liveCallSeconds / 60)).padStart(2, '0');
                 const secs = String(liveCallSeconds % 60).padStart(2, '0');
-                document.getElementById('live-call-timer').innerText = `${mins}:${secs}`;
+                const timerText = `${mins}:${secs}`;
+                const barTimer = document.getElementById('live-call-timer');
+                if (barTimer) barTimer.innerText = timerText;
+                const overlayTimer = document.getElementById('overlay-call-timer');
+                if (overlayTimer) overlayTimer.innerText = timerText;
             }, 1000);
 
             // 招手迎接姿态
             setMascotPosture('proactive_jump');
-            speakText("📞 智小伴全双工实时通话已接通！主帅，请随时对我说话吧，无需再按任何按钮！");
+            const introMsg = "📞 智小伴全双工实时通话已接通！主帅，请随时对我说话吧，无需再按任何按钮！";
+            speakText(introMsg);
+
+            const overlaySpeaker = document.getElementById('overlay-speaker-label');
+            if (overlaySpeaker) overlaySpeaker.innerText = "🦊 智小伴讲话中：";
+            const overlayText = document.getElementById('overlay-live-transcript');
+            if (overlayText) overlayText.innerText = introMsg;
 
             // 触发麦克风收音
             setTimeout(() => {
                 if (!isRecording) toggleVoiceMic();
-            }, 2500);
+            }, 1500);
         }
 
         function stopGeminiLiveContinuousCall() {
             isContinuousCallActive = false;
+            document.getElementById('live-voice-call-overlay').style.display = 'none';
             document.getElementById('gemini-live-call-bar').style.display = 'none';
 
             const btn = document.getElementById('floating-call-btn');
@@ -1312,6 +1401,29 @@
             stopRecordingUI();
             if (window.speechSynthesis) window.speechSynthesis.cancel();
             setMascotPosture('idle');
+        }
+
+        function toggleLiveCallMute() {
+            const btn = document.getElementById('live-call-mute-btn');
+            if (isRecording) {
+                if (speechRecognitionInstance) {
+                    try { speechRecognitionInstance.stop(); } catch(e){}
+                }
+                stopMediaRecorder();
+                stopRecordingUI();
+                if (btn) {
+                    btn.innerText = '🔇';
+                    btn.style.background = 'rgba(239,68,68,0.25)';
+                    btn.style.borderColor = '#ef4444';
+                }
+            } else {
+                toggleVoiceMic();
+                if (btn) {
+                    btn.innerText = '🎤';
+                    btn.style.background = 'rgba(255,255,255,0.1)';
+                    btn.style.borderColor = 'rgba(255,255,255,0.2)';
+                }
+            }
         }
 
         /* 🎤 全双工全语种自适应 AI 伴学 Agent (支持 🇯🇵 日语 / 🇺🇸 英语 / 🇨🇳 中文 100% 极速收音) */
@@ -1556,6 +1668,12 @@
         }
 
         async function speakText(text, audioDataUrl = null) {
+            // 同步更新沉浸式全屏通话字幕
+            const overlaySpeaker = document.getElementById('overlay-speaker-label');
+            if (overlaySpeaker) overlaySpeaker.innerText = "🦊 智小伴回答中：";
+            const overlayText = document.getElementById('overlay-live-transcript');
+            if (overlayText && text) overlayText.innerText = text;
+
             // 1. 若 AI 正在发声，新话语进来前先停掉旧声音
             if (currentAudioPlayer) {
                 try { currentAudioPlayer.pause(); } catch(e){}

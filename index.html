@@ -1244,32 +1244,94 @@
             }
         }
 
+        /* 🔊 Web Audio API 高保真萌宠音调与声学响铃合成器 */
+        function playVoiceAudioChime(key) {
+            try {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (!AudioCtx) return;
+                const ctx = new AudioCtx();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+
+                const now = ctx.currentTime;
+                if (key === 'cute') {
+                    // 🦊 智小伴：双音高调卡拉萌音 (C6 -> G6 快速升调)
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(1046.5, now);
+                    osc.frequency.exponentialRampToValueAtTime(1567.98, now + 0.15);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                    osc.start(now);
+                    osc.stop(now + 0.3);
+                } else if (key === 'sweet') {
+                    // 👩 知心姐姐：柔和暖音 (E5 -> A5)
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(659.25, now);
+                    osc.frequency.exponentialRampToValueAtTime(880.0, now + 0.2);
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+                    osc.start(now);
+                    osc.stop(now + 0.35);
+                } else if (key === 'boy') {
+                    // 👦 阳光哥哥：热血冲刺和弦 (G4 -> C5)
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(392.0, now);
+                    osc.frequency.exponentialRampToValueAtTime(523.25, now + 0.15);
+                    gain.gain.setValueAtTime(0.1, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+                    osc.start(now);
+                    osc.stop(now + 0.25);
+                } else {
+                    // 🦉 智囊导师：沉稳学术和弦 (C3 低音)
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(130.81, now);
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+                    osc.start(now);
+                    osc.stop(now + 0.4);
+                }
+            } catch (e) {
+                console.error("Audio Chime Error:", e);
+            }
+        }
+
         function speakText(text) {
+            // 1. 先播放选定音色的 Web Audio 专属伴学前奏响铃
+            playVoiceAudioChime(selectedVoiceKey);
+
             if ('speechSynthesis' in window) {
                 window.speechSynthesis.cancel();
                 const synth = new SpeechSynthesisUtterance(text);
                 synth.lang = 'zh-CN';
                 
-                // 根据所选 Qwen CosyVoice 音色调制高保真频率与语速
+                // 极具反差的音调 (Pitch) 与语速 (Rate) 强调制，确保声音一听即变！
                 if (selectedVoiceKey === 'cute') {
-                    synth.rate = 1.12;
-                    synth.pitch = 1.35; // 萌系小狐狸高保真高音
+                    synth.rate = 1.25;  // 快语速
+                    synth.pitch = 1.75; // 萌系极高极尖萌音
                 } else if (selectedVoiceKey === 'sweet') {
-                    synth.rate = 0.98;
-                    synth.pitch = 1.15; // 知心姐姐温柔甜美中高音
+                    synth.rate = 0.92;  // 舒缓语速
+                    synth.pitch = 1.30; // 甜美高音
                 } else if (selectedVoiceKey === 'boy') {
-                    synth.rate = 1.05;
-                    synth.pitch = 0.95; // 阳光哥哥热血中音
+                    synth.rate = 1.15;  // 阳光快语速
+                    synth.pitch = 0.90; // 青年男高音
                 } else {
-                    synth.rate = 0.92;
-                    synth.pitch = 0.82; // 智囊导师沉稳低音
+                    synth.rate = 0.85;  // 沉稳慢语速
+                    synth.pitch = 0.55; // 极低沉教授低音
                 }
 
-                // 优先匹配 Neural 神经网络人声 (如 Xiaoxiao / Yunxi / Xiaoyi / Yunyang)
+                // 强制匹配多音色
                 const voices = window.speechSynthesis.getVoices();
-                const neuralVoice = voices.find(v => (v.name.includes('Neural') || v.name.includes('Natural') || v.name.includes('Xiaoxiao') || v.name.includes('Yunxi')) && v.lang.includes('zh'));
-                if (neuralVoice) {
-                    synth.voice = neuralVoice;
+                if (voices && voices.length > 0) {
+                    // 寻找中文或不同音色引擎绑定
+                    const zhVoices = voices.filter(v => v.lang.includes('zh') || v.lang.includes('CN'));
+                    if (zhVoices.length > 0) {
+                        if (selectedVoiceKey === 'cute' && zhVoices[0]) synth.voice = zhVoices[0];
+                        else if (selectedVoiceKey === 'sweet' && zhVoices[1 % zhVoices.length]) synth.voice = zhVoices[1 % zhVoices.length];
+                        else if (selectedVoiceKey === 'boy' && zhVoices[2 % zhVoices.length]) synth.voice = zhVoices[2 % zhVoices.length];
+                        else if (selectedVoiceKey === 'master' && zhVoices[zhVoices.length - 1]) synth.voice = zhVoices[zhVoices.length - 1];
+                    }
                 }
 
                 window.speechSynthesis.speak(synth);

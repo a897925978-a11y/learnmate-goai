@@ -895,19 +895,27 @@
         </div>
     </div>
 
-    <!-- 📞 Gemini Live 实时语音双向通话浮条 (Real-Time Voice Streaming Call Bar) -->
-    <div id="gemini-live-call-bar" style="position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:400; background:rgba(15, 23, 42, 0.98); border:2px solid #10b981; border-radius:9999px; padding:0.6rem 1.6rem; display:none; align-items:center; gap:1.2rem; box-shadow:0 16px 50px rgba(16,185,129,0.5); backdrop-filter:blur(24px);">
+    <!-- 📞 Gemini Live 实时语音双向通话浮条 (Real-Time Voice Streaming Call Bar + 多语种速切换) -->
+    <div id="gemini-live-call-bar" style="position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:400; background:rgba(15, 23, 42, 0.98); border:2px solid #10b981; border-radius:9999px; padding:0.6rem 1.6rem; display:none; align-items:center; gap:1rem; box-shadow:0 16px 50px rgba(16,185,129,0.5); backdrop-filter:blur(24px);">
         <div style="display:flex; align-items:center; gap:0.6rem;">
             <div style="width:12px; height:12px; border-radius:50%; background:#10b981; box-shadow:0 0 15px #10b981; animation:pulse-dot 1.2s infinite;"></div>
             <div>
-                <div style="font-size:0.9rem; font-weight:800; color:#fff;" id="live-call-status-title">📞 实时双向语音通话中 (Gemini Live)</div>
-                <div style="font-size:0.7rem; color:#34d399;" id="live-call-status-sub">麦克风常开对讲中 · 随时说话交流</div>
+                <div style="font-size:0.85rem; font-weight:800; color:#fff;" id="live-call-status-title">📞 实时双向语音通话中 (Gemini Live)</div>
+                <div style="font-size:0.68rem; color:#34d399;" id="live-call-status-sub">麦克风常开对讲中 · 随时说话交流</div>
             </div>
         </div>
 
-        <div style="font-size:0.9rem; font-weight:800; color:#a5b4fc; font-family:monospace;" id="live-call-timer">00:00</div>
+        <!-- 🌐 语种速切组合键 -->
+        <div style="display:flex; background:rgba(0,0,0,0.4); padding:0.2rem; border-radius:9999px; gap:0.25rem; border:1px solid rgba(255,255,255,0.15);">
+            <button onclick="setSpeechLang('zh-CN', 'cute', '🇨🇳 中文')" class="lang-pill-btn active" id="lang-btn-zh" style="background:#10b981; color:#fff; border:none; border-radius:9999px; padding:0.2rem 0.55rem; font-size:0.7rem; font-weight:700; cursor:pointer;">🇨🇳 中文</button>
+            <button onclick="setSpeechLang('en-US', 'en_cute', '🇺🇸 English')" class="lang-pill-btn" id="lang-btn-en" style="background:none; color:#cbd5e1; border:none; border-radius:9999px; padding:0.2rem 0.55rem; font-size:0.7rem; font-weight:700; cursor:pointer;">🇺🇸 English</button>
+            <button onclick="setSpeechLang('ja-JP', 'ja_cute', '🇯🇵 日本語')" class="lang-pill-btn" id="lang-btn-ja" style="background:none; color:#cbd5e1; border:none; border-radius:9999px; padding:0.2rem 0.55rem; font-size:0.7rem; font-weight:700; cursor:pointer;">🇯🇵 日本語</button>
+            <button onclick="setSpeechLang('ko-KR', 'ko_cute', '🇰🇷 한국어')" class="lang-pill-btn" id="lang-btn-ko" style="background:none; color:#cbd5e1; border:none; border-radius:9999px; padding:0.2rem 0.55rem; font-size:0.7rem; font-weight:700; cursor:pointer;">🇰🇷 한국어</button>
+        </div>
 
-        <button onclick="stopGeminiLiveContinuousCall()" style="background:#ef4444; border:none; color:#fff; padding:0.4rem 1rem; border-radius:9999px; font-size:0.8rem; font-weight:800; cursor:pointer; box-shadow:0 0 15px rgba(239,68,68,0.5);">
+        <div style="font-size:0.85rem; font-weight:800; color:#a5b4fc; font-family:monospace;" id="live-call-timer">00:00</div>
+
+        <button onclick="stopGeminiLiveContinuousCall()" style="background:#ef4444; border:none; color:#fff; padding:0.35rem 0.85rem; border-radius:9999px; font-size:0.75rem; font-weight:800; cursor:pointer; box-shadow:0 0 15px rgba(239,68,68,0.5);">
             🔴 结束通话
         </button>
     </div>
@@ -1259,13 +1267,31 @@
             setMascotPosture('idle');
         }
 
-        /* 🎤 真实浏览器麦克风 Web Speech Recognition 实时收音 (支持中英双语 🇨🇳 🇺🇸) */
+        /* 🎤 真实浏览器麦克风 Web Speech Recognition 实时收音 (支持全球 10+ 语种 🇨🇳 🇺🇸 🇯🇵 🇰🇷) */
         let speechRecognitionInstance = null;
-        let selectedSpeechLang = 'zh-CN'; // 'zh-CN' | 'en-US'
+        let selectedSpeechLang = 'zh-CN'; // 'zh-CN' | 'en-US' | 'ja-JP' | 'ko-KR'
 
-        function toggleSpeechLanguage(lang) {
+        function setSpeechLang(lang, voiceKey, langLabel) {
             selectedSpeechLang = lang;
-            alert(lang === 'en-US' ? "🇺🇸 Switched to English Speech Mode!" : "🇨🇳 己切换至中文语音模式！");
+            selectedVoiceKey = voiceKey;
+            
+            document.querySelectorAll('.lang-pill-btn').forEach(btn => {
+                btn.style.background = 'none';
+                btn.style.color = '#cbd5e1';
+            });
+            const activeBtnId = lang === 'zh-CN' ? 'lang-btn-zh' : (lang === 'en-US' ? 'lang-btn-en' : (lang === 'ja-JP' ? 'lang-btn-ja' : 'lang-btn-ko'));
+            const activeBtn = document.getElementById(activeBtnId);
+            if (activeBtn) {
+                activeBtn.style.background = '#10b981';
+                activeBtn.style.color = '#fff';
+            }
+
+            const subTitle = document.getElementById('live-call-status-sub');
+            if (subTitle) subTitle.innerText = `麦克风常开对讲中 · 当前语种：${langLabel}`;
+
+            if (isRecording && speechRecognitionInstance) {
+                try { speechRecognitionInstance.stop(); } catch(e){}
+            }
         }
 
         function initSpeechRecognition() {

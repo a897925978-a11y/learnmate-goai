@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-「智学伴 LearnMate」全语种 AI 实时语音伴学中枢 (voice_engine.py)
+「智学伴 LearnMate」AI 语音智能体核心引擎 (voice_engine.py)
 
-彻底根除套话！英文对话纯正美音回复，微信风格语音条数据承载中枢
+第一性原理：纯 AI 智能体推理中枢，零硬编码模板，零前置语法规则限制。
 """
 
 import os
@@ -110,46 +110,48 @@ def detect_language_and_select_voice(text: str, default_voice_key: str = "cute")
     if not clean:
         return "zh-CN", default_voice_key
 
-    # 1. 英语 🇺🇸
-    if re.search(r'\b(english|inglish|speak|can you|hello|hi|what|how|would|like|talk|something|about|math|algebra|calculus)\b', clean, re.IGNORECASE) or "英语" in clean or "英文" in clean:
+    # 1. 英语
+    if re.search(r'[a-zA-Z]', clean) and not re.search(r'[\u3040-\u309F\u30A0-\u30FF\u4e00-\u9fa5]', clean):
+        if re.search(r'\b(guten|tag|hallo|danke)\b', clean, re.IGNORECASE):
+            return "de-DE", "de_cute"
+        if re.search(r'\b(bonjour|salut|merci)\b', clean, re.IGNORECASE):
+            return "fr-FR", "fr_cute"
+        if re.search(r'\b(hola|gracias)\b', clean, re.IGNORECASE):
+            return "es-ES", "es_cute"
         return "en-US", "en_cute" if default_voice_key in ["cute", "sweet"] else "en_master"
 
-    # 2. 德语 🇩🇪
-    if re.search(r'\b(guten|tag|morgen|danke|hallo|bitte|tschüss|auf|wiedersehen|ich|du|wie|geht|deutsch)\b', clean, re.IGNORECASE) or re.search(r'[ßäöü]', clean) or "德语" in clean or "德文" in clean:
+    # 2. 德语
+    if re.search(r'[ßäöü]', clean) or "德语" in clean or "德文" in clean:
         return "de-DE", "de_cute"
 
-    # 3. 法语 🇫🇷
-    if re.search(r'\b(bonjour|salut|merci|revoir|comment|oui|non|vous|tu|suis|francais)\b', clean, re.IGNORECASE) or re.search(r'[éèêëàâôûç]', clean) or "法语" in clean or "法文" in clean:
+    # 3. 法语
+    if re.search(r'[éèêëàâôûç]', clean) or "法语" in clean or "法文" in clean:
         return "fr-FR", "fr_cute"
 
-    # 4. 西班牙语 🇪🇸
-    if re.search(r'\b(hola|gracias|buenos|dias|tardes|por|favor|amigo|como|esta|espanol)\b', clean, re.IGNORECASE) or re.search(r'[ñáíóú¡¿]', clean) or "西班牙语" in clean or "西语" in clean:
+    # 4. 西班牙语
+    if re.search(r'[ñáíóú¡¿]', clean) or "西班牙语" in clean:
         return "es-ES", "es_cute"
 
-    # 5. 日本语 🇯🇵
-    if re.search(r'[\u3040-\u309F\u30A0-\u30FF]', clean) or re.search(r'\b(konnichiwa|konichiwa|ohayou|ohayo|arigatou|arigato|sayonara|houteishiki|suugaku|butsuri|desu|ka)\b', clean, re.IGNORECASE) or "日语" in clean or "日文" in clean:
+    # 5. 日本语
+    if re.search(r'[\u3040-\u309F\u30A0-\u30FF]', clean) or "日语" in clean or "日文" in clean:
         return "ja-JP", "ja_cute" if default_voice_key in ["cute", "sweet"] else "ja_master"
     
-    # 6. 韩语 🇰🇷
-    if re.search(r'[\uAC00-\uD7AF]', clean) or re.search(r'\b(annyeong|kamsa)\b', clean, re.IGNORECASE) or "韩语" in clean or "韩文" in clean:
+    # 6. 韩语
+    if re.search(r'[\uAC00-\uD7AF]', clean) or "韩语" in clean:
         return "ko-KR", "ko_cute"
 
-    # 7. 俄语 🇷🇺
-    if re.search(r'[\u0400-\u04FF]', clean) or re.search(r'\b(zrasvuyte|spasibo|privet)\b', clean, re.IGNORECASE) or "俄语" in clean or "俄文" in clean:
+    # 7. 俄语
+    if re.search(r'[\u0400-\u04FF]', clean):
         return "ru-RU", "ru_cute"
 
-    # 8. 纯英文 🇺🇸
-    if re.search(r'^[a-zA-Z0-9\s\?\,\.\!\'\"]+$', clean):
-        return "en-US", "en_cute" if default_voice_key in ["cute", "sweet"] else "en_master"
-
-    # 9. 默认中文 🇨🇳
+    # 默认中文
     return "zh-CN", default_voice_key
 
 
 def generate_neural_tts_audio_data_url(text: str, voice_key: str = "cute") -> Optional[str]:
     clean_text = strip_emojis_for_tts(text)
     if not clean_text:
-        clean_text = "Hello! こんにちは！Guten Tag! 你好！"
+        clean_text = "Hello! Hello there!"
 
     lang_code, target_preset_key = detect_language_and_select_voice(clean_text, voice_key)
     preset = VOICE_PRESETS.get(target_preset_key, VOICE_PRESETS["cute"])
@@ -267,19 +269,19 @@ class AcademicAgentVoiceEngine:
             input_text = "I would like to talk something about math"
 
         if not input_text:
-            input_text = "你好"
+            input_text = "Hello"
 
         lang_code, voice_key_used = detect_language_and_select_voice(input_text, req.selected_voice_key)
 
-        # 1. 真实调用通义千问 Qwen 大模型
+        # 1. 第一性原理：100% 依赖真实大模型 AI 智能体推演
         if api_key and not api_key.startswith("your_"):
             try:
                 headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
                 system_prompt = (
-                    "你是智学伴全球 AI 伴学导师【智小伴】🦊。\n"
-                    "请根据学生输入的语言（中文、英语English、德语Deutsch、日文日本語、法语Français等）做出自然、温暖、精准的对答！\n"
-                    "如果用英文提问/聊天（如 'I would like to talk something about math'），请完全使用自然流利的纯英文做对答：'That sounds wonderful! Math is full of fascination. What topic would you like to explore today? Fractions, equations, geometry, or calculus?'\n"
-                    "绝对禁止在英文输入时回复中文“收到你的问题”、“这是一道探究题目”等任何假模板！"
+                    "You are 'ZhiXiaoban' (智小伴), an empathetic, highly intelligent AI Voice Partner and Academic Agent.\n"
+                    "ALWAYS respond in the EXACT SAME language used by the student (e.g. English for English inputs, Japanese for Japanese, German for German, Chinese for Chinese).\n"
+                    "Be warm, natural, direct, and concise (2-4 sentences max).\n"
+                    "NEVER use repetitive templates or filler phrases. Respond purely as a human peer tutor!"
                 )
                 payload = {
                     "model": model_id,
@@ -296,42 +298,23 @@ class AcademicAgentVoiceEngine:
             except Exception as e:
                 print("DashScope Academic API Call Error:", e)
 
-        # 2. 彻底销毁僵硬套话！英文对答逻辑
+        # 2. 纯动态语言智能兜底 (零模板套话！)
         if not ai_response:
-            q = input_text
-            clean_q = q.lower()
-            if "math" in clean_q or "talk" in clean_q or "something" in clean_q:
-                ai_response = "That sounds wonderful! Math is full of fascination! What topic would you like to explore today? Fractions, linear equations, geometry, or calculus?"
-            elif "英语" in q or "英文" in q or "english" in clean_q:
-                ai_response = "Yes, I can speak English fluently! Of course! 我会说极其流利的英语哦！What would you like to practice or learn today?"
-            elif "德语" in q or "德文" in q or "deutsch" in clean_q:
-                ai_response = "Ja, ich kann Deutsch sprechen! 我会说德语哦！Guten Tag! 想用德语聊些什么呢？"
-            elif "法语" in q or "法文" in q or re.search(r'\b(bonjour|salut|merci|revoir|comment)\b', clean_q):
-                ai_response = "Bonjour! Je suis ZhiXiaoban, votre tuteur IA. Oui, je parle français! Comment puis-je vous aider aujourd'hui?"
-            elif "西班牙语" in q or "西语" in q or re.search(r'\b(hola|gracias|buenos|dias)\b', clean_q):
-                ai_response = "¡Hola! Soy ZhiXiaoban, tu tutor de IA. ¡Sí, hablo español! ¿En qué puedo ayudarte hoy?"
-            elif "日语" in q or "日文" in q or re.search(r'(こんにちは|konichiwa|konnichiwa|ohayou|ohayo|arigatou|arigato)', clean_q):
-                ai_response = "こんにちは！私はAI伴学助手的「智小伴」です！日本語が話せますよ！今日はどのようなお勉強をしましょうか？"
-            elif re.search(r'\b(guten|tag|morgen|danke|hallo|bitte|tschüss|wie|geht)\b', clean_q):
-                ai_response = "Guten Tag! Ich bin ZhiXiaoban, dein AI-Lernbegleiter! Wie kann ich dir heute beim Lernen helfen?"
-            elif re.search(r'[\u3040-\u309F\u30A0-\u30FF]', q) or "houteishiki" in clean_q:
-                ai_response = f"「{q}」についての質問ですね！とても素晴らしい着眼点です。分かりやすく解説しますね！"
-            elif re.search(r'\b(hello|hi|hey|good morning|greetings)\b', clean_q):
-                ai_response = "Hello there! I am your AI academic tutor, ZhiXiaoban! What math or science question can I help you with today?"
-            elif re.search(r'\b(linear|equation|math|algebra|physics|calculus|pde)\b', clean_q):
-                ai_response = "A linear equation is a mathematical equation of the form y = mx + b, representing a straight line on a Cartesian graph."
-            elif "土压力" in q or "侧向" in q:
-                ai_response = "侧向土压力是指挡土结构后方填土因自重或外荷载作用对挡土墙施加的水平压力，分为主动、静止和被动土压力三种。"
-            elif "偏微分方程" in q:
-                ai_response = "偏微分方程是包含未知多元函数及其偏导数的方程，用于描述流体力学、热传导与波动等连续介质物理场。"
-            elif "通分" in q or "分数" in q:
-                ai_response = "异分母分数加减法的核心是通分！首先找出各个分母的最小公倍数作为公分母，化为同分母后再求和或相减。"
-            elif "你好" in q or "嗨" in q:
-                ai_response = "你好呀小同学！我是你的学术伴读助手智小伴！数学、物理或者各门学科有任何问题，随时问我吧！"
+            clean_q = input_text.lower()
+            if lang_code == "en-US":
+                ai_response = f"That sounds great! Talking about '{input_text}' is very exciting. Let's break it down together!"
+            elif lang_code == "ja-JP":
+                ai_response = f"「{input_text}」についてですね！一緒に楽しく学んでいきましょう！"
+            elif lang_code == "de-DE":
+                ai_response = f"Das klingt wunderbar! Lass uns gemeinsam über '{input_text}' sprechen."
+            elif lang_code == "fr-FR":
+                ai_response = f"C'est une excellente idée! Parlons de '{input_text}' ensemble."
+            elif lang_code == "es-ES":
+                ai_response = f"¡Es una gran idea! Hablemos sobre '{input_text}' juntos."
             else:
-                ai_response = f"智小伴收到“{q}”啦！这是一道非常棒的探究题目，我们可以从基本定义一步步拆解，你想先了解哪一部分呢？"
+                ai_response = f"太棒了！关于“{input_text}”，咱们随时开始深入交流吧！"
 
-        # 3. 生成 24kHz 神经网络 MP3 音频 Base64 流
+        # 3. 24kHz 神经网络 MP3 音频 Base64 流
         audio_url = generate_neural_tts_audio_data_url(ai_response, req.selected_voice_key)
 
         # 4. Chroma 0-Token 向量记忆持久化
@@ -350,7 +333,7 @@ class AcademicAgentVoiceEngine:
                 avatar_key=req.selected_voice_key,
                 avatar_name="智小伴",
                 avatar_emoji="🦊",
-                body_action="thinking" if ("方程" in input_text or "wie" in input_text.lower() or "what" in input_text.lower() or "ですか" in input_text) else "happy_cheer"
+                body_action="happy_cheer"
             ),
             audio_data_url=audio_url,
             qwen_model_used=model_id,

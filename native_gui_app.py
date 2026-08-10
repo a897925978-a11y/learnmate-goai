@@ -517,15 +517,22 @@ class LearnMateNativeApp(ctk.CTk):
                 with open(temp_mp3, "wb") as f:
                     f.write(base64.b64decode(audio_b64))
             else:
-                # 调取 edge-tts 运行合成
-                import subprocess
-                cmd = [
-                    sys.executable, "-m", "edge_tts",
-                    "--voice", "zh-CN-XiaoxiaoNeural",
-                    "--text", text,
-                    "--write-media", temp_mp3
-                ]
-                subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                # 🎙️ 在当前 Python 进程内直接渲染 24kHz 神经网络真人语音，防 CLI 崩溃
+                import asyncio
+                import edge_tts
+                
+                async def _gen_tts_in_process():
+                    communicate = edge_tts.Communicate(text=text, voice="zh-CN-XiaoxiaoNeural")
+                    audio_data_buf = bytearray()
+                    async for chunk in communicate.stream():
+                        if chunk["type"] == "audio":
+                            audio_data_buf.extend(chunk["data"])
+                    return bytes(audio_data_buf)
+                
+                raw_mp3_bytes = asyncio.run(_gen_tts_in_process())
+                if raw_mp3_bytes:
+                    with open(temp_mp3, "wb") as f:
+                        f.write(raw_mp3_bytes)
 
             # 播放音频
             if os.path.exists(temp_mp3):

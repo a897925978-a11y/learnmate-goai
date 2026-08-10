@@ -391,7 +391,7 @@ class AcademicAgentVoiceEngine:
         # 2. 智能识别输入语言
         detected_lang = detect_language_code(input_text)
 
-        # 3. 真实调用 Qwen / Gemini 智能体大脑 (强约束：1-2句口语短句，<30字)
+        # 3. 真实调用 Qwen-Omni 智能体大脑 (支持原生 Audio 生吃音频与双模态推演)
         if api_key and not api_key.startswith("your_"):
             try:
                 headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
@@ -405,18 +405,32 @@ class AcademicAgentVoiceEngine:
                     "2. DIRECT & CONCISE: Reply strictly in 1 to 2 spoken sentences (15-30 words max). Talk naturally like a human peer!\n"
                     "3. ACCURATE ANSWER: Directly answer the student's question with domain accuracy. No repetitive intros."
                 )
+                
+                # Qwen-Omni 原生多模态音频与文本混合输入 ("生吃音频")
+                if req.voice_audio_b64:
+                    raw_b64 = req.voice_audio_b64.split(",")[1] if "," in req.voice_audio_b64 else req.voice_audio_b64
+                    user_content = [
+                        {"type": "text", "text": input_text if input_text else "请听我的声音并回答。"},
+                        {"type": "input_audio", "input_audio": {"data": raw_b64, "format": "wav"}}
+                    ]
+                else:
+                    user_content = input_text
+
                 payload = {
                     "model": model_id,
                     "messages": [
                         {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": input_text}
+                        {"role": "user", "content": user_content}
                     ],
                     "max_tokens": 120,
                     "temperature": 0.7
                 }
                 res = requests.post(f"{base_url.rstrip('/')}/chat/completions", headers=headers, json=payload, timeout=6)
                 if res.status_code == 200:
-                    ai_response = res.json()["choices"][0]["message"]["content"].strip()
+                    choices = res.json().get("choices", [])
+                    if choices:
+                        msg = choices[0].get("message", {})
+                        ai_response = msg.get("content", "").strip()
             except Exception as e:
                 print("Multilingual LLM Call Error:", e)
 

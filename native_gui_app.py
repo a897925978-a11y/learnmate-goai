@@ -504,6 +504,8 @@ class LearnMateNativeApp(ctk.CTk):
 
             if audio_b64:
                 import base64
+                if "," in audio_b64:
+                    audio_b64 = audio_b64.split(",")[1]
                 with open(temp_mp3, "wb") as f:
                     f.write(base64.b64decode(audio_b64))
             else:
@@ -519,13 +521,22 @@ class LearnMateNativeApp(ctk.CTk):
 
             # 播放音频
             if os.path.exists(temp_mp3):
-                pygame.mixer.music.load(temp_mp3)
-                pygame.mixer.music.play()
-                while pygame.mixer.music.get_busy():
-                    time.sleep(0.1)
+                try:
+                    if not pygame.mixer.get_init():
+                        pygame.mixer.init(frequency=24000, size=-16, channels=1, buffer=512)
+                    pygame.mixer.music.load(temp_mp3)
+                    pygame.mixer.music.play()
+                    while pygame.mixer.music.get_busy():
+                        time.sleep(0.05)
+                except Exception as py_err:
+                    print("Pygame audio error, retrying...", py_err)
+                    pygame.mixer.init(frequency=24000, size=-16, channels=1, buffer=512)
+                    pygame.mixer.music.load(temp_mp3)
+                    pygame.mixer.music.play()
 
         except Exception as e:
-            time.sleep(2.0)
+            print("Speech Playback Exception:", e)
+            time.sleep(1.0)
         finally:
             # 播放完成恢复 idle
             self.after(0, lambda: (
@@ -534,7 +545,7 @@ class LearnMateNativeApp(ctk.CTk):
             ))
 
     def start_mic_capture(self):
-        """拉起 Windows 硬件麦克风录音流，实时计算 RMS 振幅、VAD 静音截断并全自动进行语音对讲"""
+        """拉起 Windows 硬件麦克风录音流，极速 RMS 振幅计算、< 300ms 极速 VAD 静音截断并全自动进行对讲"""
         if not PYAUDIO_AVAILABLE:
             return
 
@@ -561,7 +572,7 @@ class LearnMateNativeApp(ctk.CTk):
                     # 实时计算音量 RMS 振幅
                     import audioop
                     rms = audioop.rms(data, 2)
-                    norm_vol = min(1.0, rms / 2500.0)
+                    norm_vol = min(1.0, rms / 2000.0)
 
                     # 1. 安全调度至 Tkinter 主线程更新 2D 动漫伙伴波形动画
                     def _update_avatar_ui(vol):
@@ -570,26 +581,26 @@ class LearnMateNativeApp(ctk.CTk):
                     
                     self.after(0, _update_avatar_ui, norm_vol)
 
-                    # 2. VAD 语音活动检测 (RMS > 350 判定为说话)
-                    if rms > 350:
+                    # 2. VAD 极速语音活动检测 (RMS > 280 判定为说话)
+                    if rms > 280:
                         speech_buffer.extend(data)
                         speaking_frames += 1
                         silence_frames = 0
                         if self.avatar_canvas.avatar_state != "speaking":
                             self.after(0, lambda: self.avatar_canvas.set_state("listening"))
                     else:
-                        if speaking_frames > 8:  # 已经采集到了有效说话声
+                        if speaking_frames >= 4:  # 已经采集到了有效说话声 (> 0.25秒)
                             speech_buffer.extend(data)
                             silence_frames += 1
                             
-                            # 3. 连续 12 帧 (约 0.7 秒) 静音停顿，触发一整句语音发送！
-                            if silence_frames > 12 and len(speech_buffer) > 16000:
+                            # 3. 连续 5 帧 (约 0.3 秒) 静音停顿，瞬间触发一整句语音发送！
+                            if silence_frames >= 5 and len(speech_buffer) >= 8000:
                                 audio_payload_pcm = bytes(speech_buffer)
                                 speech_buffer.clear()
                                 speaking_frames = 0
                                 silence_frames = 0
                                 
-                                # 线程池异步将语音发往 Qwen-Omni 引擎
+                                # 线程池极速异步将语音发往 Qwen-Omni 引擎
                                 threading.Thread(target=self.process_hardware_speech_input, args=(audio_payload_pcm,), daemon=True).start()
 
                 stream.stop_stream()

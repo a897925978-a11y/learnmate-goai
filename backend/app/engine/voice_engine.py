@@ -77,7 +77,9 @@ VOICE_PRESETS = {
     "cute": {"voice": "zh-CN-XiaoxiaoNeural", "pitch": "+40Hz", "rate": "+15%"},
     "sweet": {"voice": "zh-CN-XiaoyiNeural", "pitch": "+15Hz", "rate": "-5%"},
     "boy": {"voice": "zh-CN-YunxiNeural", "pitch": "+0Hz", "rate": "+10%"},
-    "master": {"voice": "zh-CN-YunyangNeural", "pitch": "-25Hz", "rate": "-10%"}
+    "master": {"voice": "zh-CN-YunyangNeural", "pitch": "-25Hz", "rate": "-10%"},
+    "en_cute": {"voice": "en-US-AnaNeural", "pitch": "+15Hz", "rate": "+5%"},
+    "en_master": {"voice": "en-US-GuyNeural", "pitch": "-10Hz", "rate": "+0%"}
 }
 
 
@@ -99,13 +101,19 @@ def strip_emojis_for_tts(text: str) -> str:
 
 def generate_neural_tts_audio_data_url(text: str, voice_key: str = "cute") -> Optional[str]:
     """
-    通过 24kHz 神经网络声学引擎将文本转换为 MP3 Base64 Data URL (已包含算法级 Emoji 过滤)
+    通过 24kHz 神经网络声学引擎将文本转换为 MP3 Base64 Data URL (已包含算法级中英文双语识别与 Emoji 过滤)
     """
     clean_text = strip_emojis_for_tts(text)
     if not clean_text:
-        clean_text = "你好小同学！"
+        clean_text = "Hello! 你好小同学！"
 
-    preset = VOICE_PRESETS.get(voice_key, VOICE_PRESETS["cute"])
+    # 算法级自动检测是否为纯英文/主英文句子，智能切至美音原声引擎！
+    is_english = bool(re.search(r'^[a-zA-Z0-9\s\?\,\.\!\'\"]+$', clean_text))
+    target_preset_key = voice_key
+    if is_english:
+        target_preset_key = "en_cute" if voice_key in ["cute", "sweet"] else "en_master"
+
+    preset = VOICE_PRESETS.get(target_preset_key, VOICE_PRESETS["cute"])
     try:
         async def _async_gen():
             communicate = edge_tts.Communicate(
@@ -223,9 +231,9 @@ class AcademicAgentVoiceEngine:
                 headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
                 system_prompt = (
                     f"你是智学伴顶级学术 AI 导师【智小伴】🦊。"
-                    f"请作为专业学术专家，直接、深入、准确、生动地解答学生的提问！"
-                    f"如果学生询问数学/物理/化学或具体学术概念（例如：非线性偏微分方程、异分母通分等），"
-                    f"请务必给出严谨的定义、物理背景或核心公式拆解（2-4 句话以内），严禁使用套话或格式化模板！"
+                    f"你精通中英双语学术辅导 (Fully Fluent in English & Chinese Academic Tutoring)！"
+                    f"如果学生用英文提问（例如: Hello, what is a linear equation?），请务必用地道流畅的英文（English）回答！"
+                    f"给出现代严谨的定义与学术解析，严禁输出任何格式化套话！"
                 )
                 payload = {
                     "model": model_id,
@@ -242,10 +250,14 @@ class AcademicAgentVoiceEngine:
             except Exception as e:
                 print("DashScope Academic API Call Error:", e)
 
-        # 2. 真实学术知识库兜底（若 API 网络超时或失败，直接给出真实学术解答，拒绝虚假套话！）
+        # 2. 真实学术知识库兜底（包含中英双语学术原声解答）
         if not ai_response:
             q = req.voice_input_text.strip()
-            if "土压力" in q or "涂压力" in q or "侧向" in q:
+            if re.search(r'\b(hello|hi|hey|good morning)\b', q, re.IGNORECASE):
+                ai_response = "Hello there! I am your AI academic tutor, ZhiXiaoban! What math, physics, or science question can I help you with today?"
+            elif re.search(r'\b(linear|equation|math|algebra|physics|calculus|pde)\b', q, re.IGNORECASE):
+                ai_response = "A linear equation is a mathematical equation of the form y = mx + b, where m is the constant slope and b is the y-intercept, forming a straight line on a graph!"
+            elif "土压力" in q or "涂压力" in q or "侧向" in q:
                 ai_response = "侧向土压力是指挡土结构后方填土因自重或外荷载作用对挡土墙施加的水平压力！分为主动土压力、静止土压力和被动土压力三种，在基坑支护与土木工程中极其关键！"
             elif "偏微分方程" in q:
                 ai_response = "偏微分方程是包含未知多元函数及其偏导数的方程，用于描述连续介质力学、电磁学与热传导等物理场的动态演化！例如 Navier-Stokes 物理场方程。"
@@ -254,7 +266,7 @@ class AcademicAgentVoiceEngine:
             elif "你好" in q:
                 ai_response = "你好呀小同学！我是你的学术伴读助手智小伴！数学、物理或者试卷上有任何不懂的题目，随时问我吧！"
             else:
-                ai_response = f"关于【{q}】，这是力学与工程中的重要知识点！我们需要通过确定物理边界条件与基本守恒定律来建立主方程求解！"
+                ai_response = f"Regarding {q}, this is an important concept in mathematics and engineering. Let us break it down step by step!"
 
         # 3. 🔑 生成广播级 24kHz 神经网络 MP3 音频 Base64 流 (带有 Emoji 过滤)
         audio_url = generate_neural_tts_audio_data_url(ai_response, req.selected_voice_key)

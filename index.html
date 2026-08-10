@@ -1259,8 +1259,14 @@
             setMascotPosture('idle');
         }
 
-        /* 🎤 真实浏览器麦克风 Web Speech Recognition 实时收音与硬件捕获 */
+        /* 🎤 真实浏览器麦克风 Web Speech Recognition 实时收音 (支持中英双语 🇨🇳 🇺🇸) */
         let speechRecognitionInstance = null;
+        let selectedSpeechLang = 'zh-CN'; // 'zh-CN' | 'en-US'
+
+        function toggleSpeechLanguage(lang) {
+            selectedSpeechLang = lang;
+            alert(lang === 'en-US' ? "🇺🇸 Switched to English Speech Mode!" : "🇨🇳 己切换至中文语音模式！");
+        }
 
         function initSpeechRecognition() {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1269,7 +1275,7 @@
                 return null;
             }
             const rec = new SpeechRecognition();
-            rec.lang = 'zh-CN';
+            rec.lang = selectedSpeechLang;
             rec.continuous = false;
             rec.interimResults = true;
 

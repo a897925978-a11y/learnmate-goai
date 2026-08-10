@@ -206,6 +206,49 @@
             box-shadow: 0 16px 50px rgba(99, 102, 241, 0.2);
         }
 
+        /* 🎙️ 豆包 / Gemini Live 音色选择器卡片样式 */
+        .voice-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .voice-card:hover {
+            border-color: var(--primary);
+            background: rgba(99, 102, 241, 0.15);
+        }
+
+        .voice-card.active {
+            border-color: var(--accent);
+            background: rgba(16, 185, 129, 0.2);
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.3);
+        }
+
+        .attitude-btn {
+            flex: 1;
+            padding: 0.55rem;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .attitude-btn.active {
+            border-color: var(--primary);
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: #fff;
+        }
+
         .card-title-bar {
             display: flex;
             justify-content: space-between;
@@ -680,6 +723,83 @@
         </div>
     </div>
 
+    <!-- 🎙️ 豆包 / Gemini Live 风格音色与态度选择器 Modal -->
+    <div class="modal-backdrop" id="voice-selector-modal">
+        <div class="modal-card" style="max-width:550px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                <div style="display:flex; align-items:center; gap:0.6rem;">
+                    <div style="font-size:1.6rem;">✨</div>
+                    <div style="font-size:1.25rem; font-weight:800; color:#fff;"> Gemini Live / 豆包全双工语音助手设置</div>
+                </div>
+                <button onclick="closeVoiceSelectorModal()" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:1.2rem;">✕</button>
+            </div>
+
+            <p style="font-size:0.85rem; color:#94a3b8; margin-bottom:1.2rem;">
+                摸底诊断完成！请为孩子选择专属伴学 AI 的**音色性格**与**说话态度**：
+            </p>
+
+            <div style="font-size:0.9rem; font-weight:700; color:#a5b4fc; margin-bottom:0.6rem;">1. 选择音色性别与性格 (Voice Persona)</div>
+            <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:0.75rem; margin-bottom:1.25rem;">
+                <div class="voice-card active" id="vcard-lily" onclick="selectVoiceCard('lily', 'Lily (温柔姐姐)')">
+                    <div style="font-size:1.8rem;">👩</div>
+                    <div>
+                        <div style="font-weight:700; font-size:0.95rem; color:#fff;">Lily (温柔姐姐)</div>
+                        <div style="font-size:0.75rem; color:#94a3b8;">女声 · 甜美温暖 · 擅长解压</div>
+                    </div>
+                </div>
+                <div class="voice-card" id="vcard-leo" onclick="selectVoiceCard('leo', 'Leo (热血哥哥)')">
+                    <div style="font-size:1.8rem;">👨</div>
+                    <div>
+                        <div style="font-weight:700; font-size:0.95rem; color:#fff;">Leo (热血哥哥)</div>
+                        <div style="font-size:0.75rem; color:#94a3b8;">男声 · 阳光激情 · 考前冲刺</div>
+                    </div>
+                </div>
+                <div class="voice-card" id="vcard-prof" onclick="selectVoiceCard('prof', 'Professor (严谨导师)')">
+                    <div style="font-size:1.8rem;">🎓</div>
+                    <div>
+                        <div style="font-weight:700; font-size:0.95rem; color:#fff;">Professor (严谨导师)</div>
+                        <div style="font-size:0.75rem; color:#94a3b8;">男声 · 稳重专业 · 逻辑严密</div>
+                    </div>
+                </div>
+                <div class="voice-card" id="vcard-max" onclick="selectVoiceCard('max', 'Max (幽默死党)')">
+                    <div style="font-size:1.8rem;">🤡</div>
+                    <div>
+                        <div style="font-weight:700; font-size:0.95rem; color:#fff;">Max (幽默死党)</div>
+                        <div style="font-size:0.75rem; color:#94a3b8;">男声 · 梗多风趣 · 游戏化比喻</div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="font-size:0.9rem; font-weight:700; color:#a5b4fc; margin-bottom:0.6rem;">2. 说话态度与伴学姿态 (Persona Attitude)</div>
+            <div style="display:flex; gap:0.5rem; margin-bottom:1.5rem;">
+                <button class="attitude-btn active" id="att-friend" onclick="selectAttitude('friend', '同辈死党 (阿德勒共情)')">🤝 同辈死党 (共情)</button>
+                <button class="attitude-btn" id="att-coach" onclick="selectAttitude('coach', '严厉教练 (目标冲刺)')">🏆 严厉教练 (冲刺)</button>
+                <button class="attitude-btn" id="att-relax" onclick="selectAttitude('relax', '控压减负 (心理倾听)')">🧘 控压减负 (倾听)</button>
+            </div>
+
+            <button class="btn btn-primary" style="width:100%; padding:0.85rem; font-size:1rem;" onclick="startGeminiLiveVoiceSession()">
+                🎙️ 锁定配置，开启 Gemini Live 全双工语音伴学
+            </button>
+        </div>
+    </div>
+
+    <!-- 🎙️ 右下角 Gemini Live 动态极光音频波形浮窗 Widget -->
+    <div id="floating-gemini-live-bar" style="position:fixed; bottom:20px; right:20px; z-index:300; background:rgba(15, 23, 42, 0.95); border:1px solid rgba(99, 102, 241, 0.4); border-radius:9999px; padding:0.5rem 1.25rem; display:flex; align-items:center; gap:1rem; box-shadow:0 8px 32px rgba(0,0,0,0.5); backdrop-filter:blur(16px);">
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+            <div style="width:12px; height:12px; border-radius:50%; background:#10b981; box-shadow:0 0 10px #10b981; animation:pulse-dot 1.5s infinite;"></div>
+            <div style="font-size:0.85rem; font-weight:700; color:#fff;" id="active-voice-name">Gemini Live · Lily</div>
+        </div>
+
+        <canvas id="auroraWaveCanvas" width="100" height="30" style="border-radius:6px; background:rgba(0,0,0,0.2);"></canvas>
+
+        <button id="mic-toggle-btn" onclick="toggleVoiceMic()" style="background:linear-gradient(135deg, #6366f1, #ec4899); border:none; color:#fff; width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:1.1rem; box-shadow:0 0 15px rgba(99,102,241,0.5);">
+            🎤
+        </button>
+        <button onclick="openVoiceSelectorModal()" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#cbd5e1; padding:0.35rem 0.75rem; border-radius:9999px; font-size:0.75rem; font-weight:600; cursor:pointer;">
+            ⚙️ 换音色
+        </button>
+    </div>
+
     <!-- 国家心理热线高危弹窗 -->
     <div class="modal-backdrop" id="crisis-modal">
         <div class="modal-card" style="border: 2px solid var(--danger); text-align:center;">
@@ -839,6 +959,134 @@
         function openProfileModal() { document.getElementById('profile-modal').style.display = 'flex'; }
         function closeProfileModal() { document.getElementById('profile-modal').style.display = 'none'; }
         function closeCrisisModal() { document.getElementById('crisis-modal').style.display = 'none'; }
+
+        /* 🎙️ 豆包 / Gemini Live 音色与态度选择器 JS 控制器 */
+        let selectedVoiceName = 'Lily (温柔姐姐)';
+        let selectedAttitudeName = '同辈死党 (阿德勒共情)';
+        let isRecording = false;
+
+        function openVoiceSelectorModal() { document.getElementById('voice-selector-modal').style.display = 'flex'; }
+        function closeVoiceSelectorModal() { document.getElementById('voice-selector-modal').style.display = 'none'; }
+
+        function selectVoiceCard(cardId, name) {
+            document.querySelectorAll('.voice-card').forEach(c => c.classList.remove('active'));
+            document.getElementById(`vcard-${cardId}`).classList.add('active');
+            selectedVoiceName = name;
+        }
+
+        function selectAttitude(attId, name) {
+            document.querySelectorAll('.attitude-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(`att-${attId}`).classList.add('active');
+            selectedAttitudeName = name;
+        }
+
+        function startGeminiLiveVoiceSession() {
+            closeVoiceSelectorModal();
+            document.getElementById('active-voice-name').innerText = `Gemini Live · ${selectedVoiceName.split(' ')[0]}`;
+            
+            // 追加消息至聊天框
+            const chatBox = document.getElementById('chat-box');
+            const aiBubble = document.createElement('div');
+            aiBubble.className = 'msg-bubble msg-ai';
+            aiBubble.innerText = `🎙️ [Gemini Live 音色已锁定为：${selectedVoiceName} | 姿态：${selectedAttitudeName}] 小同学你好！我是你的专属 AI 伴学助手。随时对我说话吧！`;
+            chatBox.appendChild(aiBubble);
+            chatBox.scrollTop = chatBox.scrollHeight;
+
+            // 朗读欢迎语
+            speakText(`小同学你好！我是你的 ${selectedVoiceName} 伴学助手。随时对我说话吧！`);
+        }
+
+        function toggleVoiceMic() {
+            const btn = document.getElementById('mic-toggle-btn');
+            isRecording = !isRecording;
+            if (isRecording) {
+                btn.style.background = '#ef4444';
+                btn.innerText = '⏹️';
+                
+                // 模拟捕获学生语音输入并交互
+                setTimeout(async () => {
+                    const sampleText = "老师，异分母通分总是做错怎么办？";
+                    document.getElementById('chat-input-field').value = sampleText;
+                    
+                    const res = await fetch(`${API_BASE}/api/v1/voice/acoustic_chat`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            student_id: "STU-2026",
+                            voice_input_text: sampleText,
+                            audio_wpm: 110.0,
+                            audio_pause_s: 2.2
+                        })
+                    });
+                    const data = await res.json();
+
+                    // 显示回答
+                    const chatBox = document.getElementById('chat-box');
+                    const userB = document.createElement('div');
+                    userB.className = 'msg-bubble msg-user';
+                    userB.innerText = `🎙️ [语音输入] ${sampleText}`;
+                    chatBox.appendChild(userB);
+
+                    const aiB = document.createElement('div');
+                    aiB.className = 'msg-bubble msg-ai';
+                    aiB.innerText = `🎙️ [${selectedVoiceName}] ${data.ai_voice_response_text}`;
+                    chatBox.appendChild(aiB);
+                    chatBox.scrollTop = chatBox.scrollHeight;
+
+                    speakText(data.ai_voice_response_text);
+                    toggleVoiceMic();
+                }, 2000);
+
+            } else {
+                btn.style.background = 'linear-gradient(135deg, #6366f1, #ec4899)';
+                btn.innerText = '🎤';
+            }
+        }
+
+        function speakText(text) {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const synth = new SpeechSynthesisUtterance(text);
+                synth.lang = 'zh-CN';
+                synth.rate = 1.0;
+                synth.pitch = selectedVoiceName.includes('姐姐') ? 1.2 : 0.9;
+                window.speechSynthesis.speak(synth);
+            }
+        }
+
+        // 🪩 动态 Gemini Live 极光波形 Canvas 画布渲染
+        function renderAuroraWaveCanvas() {
+            const canvas = document.getElementById('auroraWaveCanvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            let step = 0;
+
+            function draw() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                step += 0.08;
+
+                ctx.beginPath();
+                ctx.moveTo(0, 15);
+                for (let x = 0; x < canvas.width; x++) {
+                    const y = Math.sin(x * 0.08 + step) * (isRecording ? 8 : 3) + 15;
+                    ctx.lineTo(x, y);
+                }
+                const grad = ctx.createLinearGradient(0, 0, 100, 0);
+                grad.addColorStop(0, '#6366f1');
+                grad.addColorStop(0.5, '#ec4899');
+                grad.addColorStop(1, '#10b981');
+                ctx.strokeStyle = grad;
+                ctx.lineWidth = 2.5;
+                ctx.stroke();
+
+                requestAnimationFrame(draw);
+            }
+            draw();
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            renderAuroraWaveCanvas();
+        });
     </script>
 </body>
 </html>

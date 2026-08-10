@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-统一 FastAPI 主路由控制层 (main.py)
-包含【任务包 1：双端初始建档与 Vision OCR 摸底模块】及全套 API 路由
+统一 FastAPI 主路由控制层 (main.py) - 包含全场景教育闭环全维学生档案 API
 """
 
 import time
@@ -13,9 +12,9 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 from backend.app.engine.profiling_engine import (
     profiling_engine,
-    ParentProfileRequest,
-    StudentPsychologyInterestRequest,
-    QuizAnswerItem
+    StudentIdentityRecord,
+    MedicalCheckupRecord,
+    StudentDiaryJournalRecord
 )
 
 from backend.app.engine.ocr_engine import analyze_test_paper_ocr
@@ -28,9 +27,9 @@ from backend.app.engine.chroma_report import build_academic_vector_report
 
 
 app = FastAPI(
-    title="「智学伴 LearnMate」- 任务包 1 双端初始建档与 Vision OCR 摸底服务",
-    description="GOAI 世界开源大赛 - 赛道二：无界应用 (AI+教育) 任务包 1 规格契约服务",
-    version="3.0.0"
+    title="「智学伴 LearnMate」- 全场景教育闭环全维学生档案 Agent 服务",
+    description="GOAI 开源大赛 - 吸收全维度学生数据 (体检报告、学籍身份、日记随笔、试卷摸底)",
+    version="4.0.0"
 )
 
 app.add_middleware(
@@ -57,57 +56,47 @@ def read_root():
     if os.path.exists(index_path):
         with open(index_path, "r", encoding="utf-8") as f:
             return f.read()
-    return "<h1>智学伴 LearnMate 任务包 1 服务运行中...</h1>"
+    return "<h1>智学伴 LearnMate 全闭环教育服务运行中...</h1>"
 
 
 # ----------------------------------------------------------------------
-# 任务包 1 核心 API 契约路由
+# 🌟 全场景教育闭环全维学生档案 RESTful API 接口
 # ----------------------------------------------------------------------
 
-@app.post("/api/v1/task1/parent_profile", summary="任务包1: 家长端学籍/教材/目标/标签建档 API")
-def task1_parent_profile(req: ParentProfileRequest):
-    res = profiling_engine.create_parent_profile(req)
-    return res.model_dump()
+@app.post("/api/v1/omni/student_lifecycle_ingest", summary="全维吸收: 入库学生学籍、体检报告、日记随笔与全维档案")
+def ingest_student_lifecycle(
+    identity: StudentIdentityRecord,
+    health_checkup: Optional[MedicalCheckupRecord] = None,
+    diary_entry: Optional[StudentDiaryJournalRecord] = None,
+    interests: List[str] = Body(["Minecraft", "篮球"]),
+    anxiety_score: int = Body(3)
+):
+    profile = profiling_engine.ingest_full_student_data(
+        identity=identity,
+        health_checkup=health_checkup,
+        diary_entry=diary_entry,
+        interests=interests,
+        anxiety_score=anxiety_score
+    )
+    return profile.model_dump()
 
 
-@app.post("/api/v1/task1/student_psychology_interest", summary="任务包1: 3-5题学习风格/焦虑度/兴趣建档 API")
-def task1_student_psychology_interest(req: StudentPsychologyInterestRequest):
-    res = profiling_engine.evaluate_student_psychology_interest(req)
-    return res.model_dump()
+@app.post("/api/v1/omni/add_health_checkup", summary="吸收单条医疗体检报告 (视力/BMI/睡眠/运动)")
+def add_health_checkup(student_id: str = Body(...), checkup: MedicalCheckupRecord = Body(...)):
+    return profiling_engine.add_health_checkup(student_id=student_id, checkup=checkup)
 
 
-@app.post("/api/v1/task1/vision_ocr_diagnostic", summary="任务包1: 试卷拍照上传 Vision OCR 解析错因归因 API")
-async def task1_vision_ocr_diagnostic(student_id: str = Form("STU-2026"), paper_image: Optional[UploadFile] = File(None)):
-    contents = await paper_image.read() if paper_image else None
-    res = profiling_engine.process_vision_ocr_diagnostic(student_id=student_id, image_bytes=contents)
-    return res.model_dump()
+@app.post("/api/v1/omni/add_diary_journal", summary="吸收单条学生日记/成长随笔 (包含 AI 情绪识别)")
+def add_diary_journal(student_id: str = Body(...), diary: StudentDiaryJournalRecord = Body(...)):
+    return profiling_engine.add_diary_entry(student_id=student_id, entry=diary)
 
 
 # ----------------------------------------------------------------------
-# 其他辅助引擎 API
+# 辅助与遗留引擎 API 接口
 # ----------------------------------------------------------------------
 
-@app.post("/api/v1/archive/parent", summary="家长端建档兜底接口")
-def create_parent_archive(payload: Dict[str, Any] = Body(...)):
-    return {
-        "status": "success",
-        "parent_id": payload.get("parent_id", "PAR-8899"),
-        "grade": payload.get("grade", "初二"),
-        "message": "家长档案更新成功"
-    }
-
-
-@app.post("/api/v1/archive/student", summary="学生端建档兜底接口")
-def create_student_archive(payload: Dict[str, Any] = Body(...)):
-    return {
-        "status": "success",
-        "student_id": payload.get("student_id", "STU-2026"),
-        "message": "学生档案更新成功"
-    }
-
-
-@app.post("/api/v1/ocr/diagnostic", summary="Vision OCR 摸底兜底接口")
-async def ocr_diagnostic(student_id: str = Form("STU-1001"), paper_image: Optional[UploadFile] = File(None)):
+@app.post("/api/v1/ocr/diagnostic", summary="Vision OCR 摸底接口")
+async def ocr_diagnostic(student_id: str = Form("STU-2026"), paper_image: Optional[UploadFile] = File(None)):
     contents = await paper_image.read() if paper_image else b"fake_bytes"
     return analyze_test_paper_ocr(student_id=student_id, paper_image=contents)
 

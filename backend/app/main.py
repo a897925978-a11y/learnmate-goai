@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-统一 FastAPI 主路由控制层 (main.py) - 包含全场景教育闭环全维学生档案 API
+统一 FastAPI 主路由控制层 (main.py) - v5.0 已锁定 Qwen3.5-Omni 世界模型与智能语音上线
 """
 
 import time
@@ -17,6 +17,10 @@ from backend.app.engine.profiling_engine import (
     StudentDiaryJournalRecord
 )
 
+from backend.app.engine.world_model_engine import world_model_engine
+from backend.app.engine.voice_engine import voice_engine, VoiceChatRequest
+from backend.app.engine.textin_ocr import textin_engine
+
 from backend.app.engine.ocr_engine import analyze_test_paper_ocr
 from backend.app.engine.fuse_engine import compute_fused_score
 from backend.app.engine.fuse_sigmoid import check_meltdown_and_adjust
@@ -27,9 +31,9 @@ from backend.app.engine.chroma_report import build_academic_vector_report
 
 
 app = FastAPI(
-    title="「智学伴 LearnMate」- 全场景教育闭环全维学生档案 Agent 服务",
-    description="GOAI 开源大赛 - 吸收全维度学生数据 (体检报告、学籍身份、日记随笔、试卷摸底)",
-    version="4.0.0"
+    title="「智学伴 LearnMate」- 锁定 Qwen3.5-Omni 世界模型与全双工智能语音 Agent",
+    description="GOAI 开源大赛 - 锁定世界模型算控，上线智能语音交互",
+    version="5.0.0"
 )
 
 app.add_middleware(
@@ -56,11 +60,37 @@ def read_root():
     if os.path.exists(index_path):
         with open(index_path, "r", encoding="utf-8") as f:
             return f.read()
-    return "<h1>智学伴 LearnMate 全闭环教育服务运行中...</h1>"
+    return "<h1>智学伴 LearnMate 世界模型与语音 Agent 服务运行中...</h1>"
 
 
 # ----------------------------------------------------------------------
-# 🌟 全场景教育闭环全维学生档案 RESTful API 接口
+# 🌍 锁定世界模型 & 🎙️ 智能语音助手 RESTful APIs
+# ----------------------------------------------------------------------
+
+@app.post("/api/v1/world/predict", summary="锁定 Qwen3.5-Omni 世界模型：预测认知状态转移")
+def predict_world_state(
+    student_id: str = Body("STU-2026"),
+    recent_concept: str = Body("异分母分数加减法"),
+    current_score: float = Body(60.0),
+    frustration_level: float = Body(0.4)
+):
+    pred = world_model_engine.predict_pedagogical_world_state(
+        student_id=student_id,
+        recent_concept=recent_concept,
+        current_score=current_score,
+        frustration_level=frustration_level
+    )
+    return pred.model_dump()
+
+
+@app.post("/api/v1/voice/chat", summary="上线智能语音助手：接收语音/文本，合成全双工伴学回答")
+def voice_assistant_chat(req: VoiceChatRequest):
+    res = voice_engine.process_voice_interaction(req)
+    return res.model_dump()
+
+
+# ----------------------------------------------------------------------
+# 全闭环与底层引擎 APIs
 # ----------------------------------------------------------------------
 
 @app.post("/api/v1/omni/student_lifecycle_ingest", summary="全维吸收: 入库学生学籍、体检报告、日记随笔与全维档案")
@@ -81,49 +111,15 @@ def ingest_student_lifecycle(
     return profile.model_dump()
 
 
-@app.post("/api/v1/omni/add_health_checkup", summary="吸收单条医疗体检报告 (视力/BMI/睡眠/运动)")
-def add_health_checkup(student_id: str = Body(...), checkup: MedicalCheckupRecord = Body(...)):
-    return profiling_engine.add_health_checkup(student_id=student_id, checkup=checkup)
-
-
-@app.post("/api/v1/omni/add_diary_journal", summary="吸收单条学生日记/成长随笔 (包含 AI 情绪识别)")
-def add_diary_journal(student_id: str = Body(...), diary: StudentDiaryJournalRecord = Body(...)):
-    return profiling_engine.add_diary_entry(student_id=student_id, entry=diary)
-
-
-# ----------------------------------------------------------------------
-# 辅助与遗留引擎 API 接口
-# ----------------------------------------------------------------------
-
 @app.post("/api/v1/ocr/diagnostic", summary="Vision OCR 摸底接口")
 async def ocr_diagnostic(student_id: str = Form("STU-2026"), paper_image: Optional[UploadFile] = File(None)):
     contents = await paper_image.read() if paper_image else b"fake_bytes"
     return analyze_test_paper_ocr(student_id=student_id, paper_image=contents)
 
 
-@app.post("/api/v1/engine/fuse", summary="卡尔曼与 EWMA 去噪融合")
-def fuse_denoise_score(s_static_history: float = Body(0.5), s_dynamic_raw: List[float] = Body([0.2, 0.8]), N: int = Body(5)):
-    return compute_fused_score(s_static_history=s_static_history, s_dynamic_raw=s_dynamic_raw, N=N)
-
-
-@app.post("/api/v1/engine/meltdown", summary="Sigmoid 相变防崩溃熔断")
-def evaluate_meltdown(consecutive_errors: int = Body(4), frustration_level: float = Body(0.85), current_difficulty: float = Body(0.85)):
-    return check_meltdown_and_adjust(consecutive_errors=consecutive_errors, frustration_level=frustration_level, current_difficulty=current_difficulty)
-
-
-@app.post("/api/v1/telemetry/analyze", summary="4维无感物理遥测")
-def analyze_telemetry(user_declared_state: str = Body("完全懂了"), first_key_latency_ms: float = Body(3200.0), backspace_rate: float = Body(9.0), option_hover_ms: float = Body(1600.0), submission_duration_s: float = Body(30.0)):
-    return process_physics_telemetry(user_declared_state=user_declared_state, first_key_latency_ms=first_key_latency_ms, backspace_rate=backspace_rate, option_hover_ms=option_hover_ms, submission_duration_s=submission_duration_s)
-
-
 @app.post("/api/v1/psychology/fsm", summary="(A,R) 心理学 FSM 与 400 热线硬阻断")
 def evaluate_psychology_fsm(user_input_text: str = Body("数学怎么学"), parent_target: str = Body("冲刺满分"), student_actual: float = Body(0.65), current_hour: int = Body(20)):
     return process_psychology_fsm(user_input_text=user_input_text, parent_target=parent_target, student_actual=student_actual, current_hour=current_hour)
-
-
-@app.post("/api/v1/material/video_workflow", summary="30s 线上 AI 动画 Master Prompt")
-def get_video_workflow(knowledge_point: str = Body("异分母分数加减法"), student_interest: str = Body("Minecraft")):
-    return create_ai_animation_workflow(knowledge_point=knowledge_point, student_interest=student_interest)
 
 
 @app.get("/api/v1/report/vector", summary="Chroma 向量学情雷达图")

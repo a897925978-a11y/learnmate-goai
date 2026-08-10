@@ -208,8 +208,8 @@ def generate_neural_tts_audio_data_url(text: str, voice_key: str = "cute") -> Op
 
 def transcribe_audio_b64(audio_b64: str) -> Optional[str]:
     """
-    🎙️ 真实 WebM 音频解包与 ASR 转录引擎
-    严禁伪造！实打实解码声音二进制
+    🎙️ 真实 WebM/WAV 音频解包与 ASR 转录引擎
+    支持标准 WAV 字节流与 WebM 格式
     """
     if not audio_b64:
         return None
@@ -236,7 +236,8 @@ def transcribe_audio_b64(audio_b64: str) -> Optional[str]:
                     "2. Do NOT add any commentary or formatting.\n"
                     "3. If silent, output nothing."
                 )
-                part = types.Part.from_bytes(data=raw_audio_bytes, mime_type="audio/webm")
+                mime = "audio/wav" if raw_audio_bytes.startswith(b"RIFF") else "audio/webm"
+                part = types.Part.from_bytes(data=raw_audio_bytes, mime_type=mime)
                 res = client.models.generate_content(
                     model="gemini-2.5-flash",
                     contents=[part, prompt]
@@ -246,18 +247,22 @@ def transcribe_audio_b64(audio_b64: str) -> Optional[str]:
             except Exception as e:
                 print("Gemini Audio ASR Exception:", e)
 
-        # 2. 本地 SpeechRecognition + pydub (ffmpeg) 解码 WebM -> WAV -> ASR (极速非阻塞)
+        # 2. 本地 SpeechRecognition 解码 (极速非阻塞)
         try:
             import speech_recognition as sr
-            from pydub import AudioSegment
-
-            with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp_in:
-                tmp_in.write(raw_audio_bytes)
-                tmp_in_path = tmp_in.name
-
-            wav_path = tmp_in_path + ".wav"
-            audio_seg = AudioSegment.from_file(tmp_in_path)
-            audio_seg.export(wav_path, format="wav")
+            
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_wav:
+                if raw_audio_bytes.startswith(b"RIFF"):
+                    tmp_wav.write(raw_audio_bytes)
+                    wav_path = tmp_wav.name
+                else:
+                    from pydub import AudioSegment
+                    with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp_in:
+                        tmp_in.write(raw_audio_bytes)
+                        tmp_in_path = tmp_in.name
+                    wav_path = tmp_in_path + ".wav"
+                    AudioSegment.from_file(tmp_in_path).export(wav_path, format="wav")
+                    if os.path.exists(tmp_in_path): os.remove(tmp_in_path)
 
             r = sr.Recognizer()
             with sr.AudioFile(wav_path) as source:
@@ -267,13 +272,12 @@ def transcribe_audio_b64(audio_b64: str) -> Optional[str]:
                 except Exception:
                     text = None
 
-                if text and text.strip():
-                    if os.path.exists(tmp_in_path): os.remove(tmp_in_path)
-                    if os.path.exists(wav_path): os.remove(wav_path)
-                    return text.strip()
+            if os.path.exists(wav_path):
+                os.remove(wav_path)
 
-            if os.path.exists(tmp_in_path): os.remove(tmp_in_path)
-            if os.path.exists(wav_path): os.remove(wav_path)
+            if text and text.strip():
+                return text.strip()
+
         except Exception as e:
             print("SpeechRecognition ASR Exception:", e)
 

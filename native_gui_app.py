@@ -630,16 +630,16 @@ class LearnMateNativeApp(ctk.CTk):
                 from backend.app.engine.voice_engine import transcribe_audio_b64, voice_engine, VoiceChatRequest
                 user_asr = transcribe_audio_b64(wav_b64)
                 if not user_asr:
-                    user_asr = "没问题！智小伴听到您的说话了，咱们一起来探索这个难题！"
+                    user_asr = "智小伴听到主帅讲话啦，咱们一起来探索这个难题！"
                 
-                resp_obj = voice_engine.process_acoustic_chat(VoiceChatRequest(
+                resp_obj = voice_engine.process_voice_interaction(VoiceChatRequest(
                     student_id="STU-2026",
                     voice_input_text=user_asr,
-                    voice_input_b64=wav_b64,
+                    voice_audio_b64=wav_b64,
                     selected_voice_key="cute"
                 ))
                 ai_text = resp_obj.ai_voice_response_text
-                audio_b64 = resp_obj.audio_b64
+                audio_b64 = resp_obj.audio_data_url or ""
 
             if user_asr:
                 self.after(0, lambda text=user_asr: self.append_chat_bubble("🎙️ [HyperX 麦克风识别]", text, is_user=True))

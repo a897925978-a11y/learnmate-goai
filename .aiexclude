@@ -1,0 +1,20 @@
+# ==========================================
+# AI Code Assistant Exclusion Rules (.aiexclude / .cursorignore)
+# Prevents Trae, Workbuddy, Cursor, Copilot, and LLM indexing agents
+# from scanning private core engine logic or creating RAG embeddings.
+# ==========================================
+
+# 1. Ignore Core Private Engine Implementations
+backend/app/engine/core_private/
+backend/app/engine/*_internal.py
+backend/app/engine/private/
+*.so
+*.pyd
+*.pyc
+
+# 2. Ignore Sensitive Architecture Manuals & Reports
+*深度审查与对标评估报告*
+*私密*
+*.key
+*.pem
+.env*

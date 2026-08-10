@@ -1,0 +1,11 @@
+# ==========================================
+# AI Context Indexing Exclusion (.cursorignore)
+# Prevents AI assistants (Trae, Workbuddy, Cursor, Copilot) from RAG indexing
+# ==========================================
+
+backend/app/engine/core_private/
+backend/app/engine/*_internal.py
+*.so
+*.pyd
+.env*
+scratch/

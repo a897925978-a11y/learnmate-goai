@@ -952,47 +952,6 @@
         </button>
     </div>
 
-    <!-- 📞 Gemini Live 沉浸式全屏 3D AI 实时语音通话大屏 (100% 极简流式体验) -->
-    <div id="live-voice-call-overlay" style="position:fixed; inset:0; z-index:10000; background:rgba(9, 13, 22, 0.96); backdrop-filter:blur(32px); display:none; flex-direction:column; align-items:center; justify-content:space-between; padding:2.5rem; color:#fff;">
-        
-        <!-- 顶部状态栏 -->
-        <div style="display:flex; justify-content:space-between; align-items:center; width:100%; max-width:850px;">
-            <div style="display:flex; align-items:center; gap:0.75rem;">
-                <div style="width:12px; height:12px; border-radius:50%; background:#10b981; box-shadow:0 0 15px #10b981; animation:pulse-dot 1.2s infinite;"></div>
-                <div>
-                    <div style="font-size:1.1rem; font-weight:800; color:#fff;">📞 智小伴 Gemini Live 全双工实时通话中</div>
-                    <div style="font-size:0.8rem; color:#34d399;" id="live-call-sub-status">🌐 全语种收音雷达已开启 · 随时说话 (无感全自动)</div>
-                </div>
-            </div>
-            <div style="background:rgba(255,255,255,0.08); padding:0.4rem 1rem; border-radius:9999px; font-family:monospace; font-size:1rem; font-weight:800; border:1px solid rgba(255,255,255,0.15);" id="overlay-call-timer">00:00</div>
-        </div>
-
-        <!-- 中间 3D 极光语音脉冲球与动漫萌宠 -->
-        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1.5rem; margin:auto 0; width:100%; max-width:700px;">
-            <div style="font-size:5rem; filter:drop-shadow(0 0 25px rgba(16,185,129,0.6)); animation:float-idle 3s ease-in-out infinite;" id="overlay-mascot-avatar">🦊</div>
-            
-            <div class="voice-call-orb-container">
-                <div class="voice-call-orb" id="voice-call-orb"></div>
-                <div class="voice-call-ring ring-1"></div>
-                <div class="voice-call-ring ring-2"></div>
-            </div>
-
-            <!-- 实时双语对讲字幕流 -->
-            <div style="width:100%; text-align:center; background:rgba(15, 23, 42, 0.85); border:1.5px solid rgba(16,185,129,0.4); border-radius:24px; padding:1.5rem 2rem; box-shadow:0 20px 50px rgba(0,0,0,0.6);">
-                <div style="font-size:0.8rem; color:#34d399; font-weight:700; margin-bottom:0.4rem;" id="overlay-speaker-label">🎙️ 正在聆听您的说话...</div>
-                <div style="font-size:1.25rem; font-weight:700; color:#f8fafc; line-height:1.6;" id="overlay-live-transcript">
-                    “麦克风已就绪，请随时对答对讲...”
-                </div>
-            </div>
-        </div>
-
-        <!-- 底部通话控制栏 -->
-        <div style="display:flex; align-items:center; gap:1.8rem;">
-            <button class="btn" style="width:56px; height:56px; border-radius:50%; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); font-size:1.5rem; color:#fff; cursor:pointer;" onclick="toggleLiveCallMute()" id="live-call-mute-btn" title="静音麦克风">🎤</button>
-            <button class="btn btn-danger" style="padding:0.9rem 2.8rem; border-radius:9999px; font-size:1.15rem; font-weight:800; box-shadow:0 0 30px rgba(239,68,68,0.6);" onclick="stopGeminiLiveContinuousCall()">🔴 结束通话</button>
-        </div>
-    </div>
-
     <!-- 国家心理热线高危弹窗 -->
     <div class="modal-backdrop" id="crisis-modal">
         <div class="modal-card" style="border: 2px solid var(--danger); text-align:center;">
@@ -1355,26 +1314,34 @@
 
         function initVoiceWebSocket() {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${protocol}//${window.location.host}/ws/voice/stream`;
+            const wsUrl = `${protocol}//${window.location.host}/ws/voice/live`;
             
             try {
                 voiceWebSocket = new WebSocket(wsUrl);
                 voiceWebSocket.onopen = () => {
-                    console.log("⚡ 全双工 AI 实时语音 WebSocket 通道已建立 (ws://voice/stream)");
+                    console.log("⚡ Gemini Live 原生流式 WebSocket 通道已建立 (ws://voice/live)");
                 };
                 voiceWebSocket.onmessage = (event) => {
                     try {
                         const msg = JSON.parse(event.data);
+                        const chatBox = document.getElementById('chat-box');
+
                         if (msg.type === 'stt_transcript') {
-                            const overlaySpeaker = document.getElementById('overlay-speaker-label');
-                            if (overlaySpeaker) overlaySpeaker.innerText = "🎙️ 您正在说话：";
-                            const overlayText = document.getElementById('overlay-live-transcript');
-                            if (overlayText) overlayText.innerText = `“${msg.text}”`;
+                            if (chatBox) {
+                                const userBubble = document.createElement('div');
+                                userBubble.className = 'msg-bubble msg-user';
+                                userBubble.innerText = `🎙️ [Gemini Live 输入] “${msg.text}”`;
+                                chatBox.appendChild(userBubble);
+                                chatBox.scrollTop = chatBox.scrollHeight;
+                            }
                         } else if (msg.type === 'ai_text_chunk') {
-                            const overlaySpeaker = document.getElementById('overlay-speaker-label');
-                            if (overlaySpeaker) overlaySpeaker.innerText = "🦊 智小伴回答中：";
-                            const overlayText = document.getElementById('overlay-live-transcript');
-                            if (overlayText) overlayText.innerText = msg.text;
+                            if (chatBox) {
+                                const aiBubble = document.createElement('div');
+                                aiBubble.className = 'msg-bubble msg-ai';
+                                aiBubble.innerText = `🦊 [智小伴 · Gemini Live] ${msg.text}`;
+                                chatBox.appendChild(aiBubble);
+                                chatBox.scrollTop = chatBox.scrollHeight;
+                            }
 
                             const bubbleEl = document.getElementById('mascot-speech-bubble');
                             if (bubbleEl) bubbleEl.innerText = msg.text;
@@ -1383,20 +1350,21 @@
                                 speakText(msg.text || "", msg.audio_b64);
                             }
                         } else if (msg.type === 'interrupted') {
-                            console.log("⚡ 接收到服务器 < 200ms 瞬间打断确认！");
+                            console.log("⚡ 接收到 Gemini Live < 50ms 瞬间打断确认！");
+                            interruptAISpeech();
                         }
                     } catch(e) {
-                        console.error("WS Frame Parse Error:", e);
+                        console.error("WS Live Frame Parse Error:", e);
                     }
                 };
                 voiceWebSocket.onclose = () => {
                     setTimeout(initVoiceWebSocket, 3500);
                 };
                 voiceWebSocket.onerror = (err) => {
-                    console.error("WebSocket stream error:", err);
+                    console.error("WebSocket live stream error:", err);
                 };
             } catch(e) {
-                console.error("Init WebSocket Error:", e);
+                console.error("Init WebSocket Live Error:", e);
             }
         }
 
@@ -1467,8 +1435,12 @@
 
         function startGeminiLiveContinuousCall() {
             isContinuousCallActive = true;
-            document.getElementById('live-voice-call-overlay').style.display = 'flex';
-            document.getElementById('gemini-live-call-bar').style.display = 'flex';
+            
+            // 🟢 保持原界面（零 UI 跳页），仅更新 Header 状态指示灯
+            const badgeDot = document.querySelector('.status-dot');
+            if (badgeDot) badgeDot.style.background = '#10b981';
+            const badgeText = document.querySelector('.status-badge span:last-child');
+            if (badgeText) badgeText.innerText = "🟢 Gemini Live 300ms 实时伴学中";
 
             const btn = document.getElementById('floating-call-btn');
             if (btn) {
@@ -1486,30 +1458,33 @@
                 const timerText = `${mins}:${secs}`;
                 const barTimer = document.getElementById('live-call-timer');
                 if (barTimer) barTimer.innerText = timerText;
-                const overlayTimer = document.getElementById('overlay-call-timer');
-                if (overlayTimer) overlayTimer.innerText = timerText;
             }, 1000);
 
             // 招手迎接姿态
             setMascotPosture('proactive_jump');
-            const introMsg = "📞 智小伴全双工实时通话已接通！主帅，请随时对我说话吧，无需再按任何按钮！";
+            const introMsg = "🟢 Gemini Live 300ms 实时伴学模式已激活！支持多语种流式对讲，请直接说话！";
             speakText(introMsg);
 
-            const overlaySpeaker = document.getElementById('overlay-speaker-label');
-            if (overlaySpeaker) overlaySpeaker.innerText = "🦊 智小伴讲话中：";
-            const overlayText = document.getElementById('overlay-live-transcript');
-            if (overlayText) overlayText.innerText = introMsg;
+            const chatBox = document.getElementById('chat-box');
+            if (chatBox) {
+                const liveBubble = document.createElement('div');
+                liveBubble.className = 'msg-bubble msg-ai';
+                liveBubble.innerText = introMsg;
+                chatBox.appendChild(liveBubble);
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }
 
             // 触发麦克风收音
             setTimeout(() => {
                 if (!isRecording) toggleVoiceMic();
-            }, 1500);
+            }, 1200);
         }
 
         function stopGeminiLiveContinuousCall() {
             isContinuousCallActive = false;
-            document.getElementById('live-voice-call-overlay').style.display = 'none';
-            document.getElementById('gemini-live-call-bar').style.display = 'none';
+            
+            const badgeText = document.querySelector('.status-badge span:last-child');
+            if (badgeText) badgeText.innerText = "全算控 Agent 引擎在线";
 
             const btn = document.getElementById('floating-call-btn');
             if (btn) {

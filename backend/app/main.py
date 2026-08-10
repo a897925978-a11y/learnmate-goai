@@ -130,7 +130,7 @@ class VoiceInterruptRequest(BaseModel):
 
 
 @app.post("/api/v1/voice/interrupt", summary="全双工实时打断 (Barge-in / Interruptibility) 信号接收")
-def interrupt_voice_session(req: Optional[VoiceInterruptRequest] = None):
+async def interrupt_voice_session(req: Dict[str, Any] = Body(default={})):
     return {"status": "interrupted", "message": "已成功接收打断信号，停止当前播音。"}
 
 
@@ -240,4 +240,19 @@ async def websocket_voice_stream_endpoint(websocket: WebSocket):
         print("WebSocket client disconnected gracefully.")
     except Exception as e:
         print("WebSocket stream exception:", e)
+
+
+# ----------------------------------------------------------------------
+# 🟢 Gemini Live 双向原生 PCM 流式实时语音 API (/ws/voice/live)
+# ----------------------------------------------------------------------
+from backend.app.engine.voice_live_engine import gemini_live_engine
+
+@app.websocket("/ws/voice/live")
+async def websocket_gemini_live_endpoint(websocket: WebSocket):
+    """
+    🟢 Gemini Live 双向原生 PCM 流式实时语音 API (/ws/voice/live)
+    支持 16kHz PCM 字节流双向 Pipe、0 全屏遮罩弹窗、主对话框内流式渲染与 < 50ms 极速打断
+    """
+    await gemini_live_engine.handle_live_websocket(websocket)
+
 

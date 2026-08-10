@@ -1190,57 +1190,101 @@
             }
         }
 
+        /* 🎤 真实浏览器麦克风 Web Speech Recognition 实时收音与硬件捕获 */
+        let speechRecognitionInstance = null;
+
+        function initSpeechRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                console.warn("Speech Recognition API not supported in this browser.");
+                return null;
+            }
+            const rec = new SpeechRecognition();
+            rec.lang = 'zh-CN';
+            rec.continuous = false;
+            rec.interimResults = true;
+
+            rec.onstart = () => {
+                const inputField = document.getElementById('chat-input-field');
+                if (inputField) inputField.placeholder = "🎙️ 麦克风已接通，正在聆听您的说话... 请对麦克风提问";
+            };
+
+            rec.onresult = (event) => {
+                let transcript = '';
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    transcript += event.results[i][0].transcript;
+                }
+                const inputField = document.getElementById('chat-input-field');
+                if (inputField) inputField.value = transcript;
+            };
+
+            rec.onerror = (event) => {
+                console.error("Microphone Speech Recognition Error:", event.error);
+                const inputField = document.getElementById('chat-input-field');
+                if (inputField) inputField.placeholder = `⚠️ 麦克风识别提示 (${event.error})，请直接打字发送...`;
+                stopRecordingUI();
+            };
+
+            rec.onend = () => {
+                stopRecordingUI();
+                const inputField = document.getElementById('chat-input-field');
+                if (inputField && inputField.value.trim().length > 0) {
+                    sendChatMessage();
+                }
+            };
+
+            return rec;
+        }
+
+        function stopRecordingUI() {
+            isRecording = false;
+            const btn = document.getElementById('mic-toggle-btn');
+            if (btn) {
+                btn.style.background = 'none';
+                btn.innerText = '🎤';
+            }
+            const inputField = document.getElementById('chat-input-field');
+            if (inputField) inputField.placeholder = "输入你想问的数学概念或题目...";
+        }
+
         function toggleVoiceMic() {
             const btn = document.getElementById('mic-toggle-btn');
-            isRecording = !isRecording;
-            if (isRecording) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            
+            if (!isRecording) {
+                isRecording = true;
                 btn.style.background = '#ef4444';
                 btn.innerText = '⏹️';
-                
-                setTimeout(async () => {
-                    const inputField = document.getElementById('chat-input-field');
-                    const inputText = inputField.value.trim() || "你好";
-                    
-                    const res = await fetch(`${API_BASE}/api/v1/voice/acoustic_chat`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            student_id: "STU-2026",
-                            voice_input_text: inputText,
-                            selected_voice_key: selectedVoiceKey,
-                            audio_wpm: 110.0,
-                            audio_pause_s: 2.2
-                        })
+
+                if (SpeechRecognition) {
+                    if (!speechRecognitionInstance) {
+                        speechRecognitionInstance = initSpeechRecognition();
+                    }
+                    try {
+                        speechRecognitionInstance.start();
+                    } catch (e) {
+                        console.warn("Speech recognition already running:", e);
+                    }
+                } else {
+                    // 请求硬件麦克风权限提示
+                    navigator.mediaDevices.getUserMedia({ audio: true }).then(() => {
+                        const inputField = document.getElementById('chat-input-field');
+                        if (inputField && inputField.value.trim().length > 0) {
+                            sendChatMessage();
+                        } else {
+                            alert("🎤 麦克风硬件已连通！请在下方输入框打字发送提问。");
+                            stopRecordingUI();
+                        }
+                    }).catch(err => {
+                        alert("⚠️ 未检测到可用的麦克风硬件，请确保麦克风已插入电脑并允许浏览器权限！");
+                        stopRecordingUI();
                     });
-                    const data = await res.json();
-                    const aiResponse = data.ai_voice_response_text;
-
-                    // 更新卡通伴读小人物气泡与对话框
-                    const bubbleEl = document.getElementById('mascot-speech-bubble');
-                    if (bubbleEl) bubbleEl.innerText = aiResponse;
-
-                    // 显示回答
-                    const chatBox = document.getElementById('chat-box');
-                    const userB = document.createElement('div');
-                    userB.className = 'msg-bubble msg-user';
-                    userB.innerText = `🎙️ [语音/输入] ${inputText}`;
-                    chatBox.appendChild(userB);
-
-                    const emoji = (data.mascot_body_state && data.mascot_body_state.avatar_emoji) ? data.mascot_body_state.avatar_emoji : "🦊";
-                    const aiB = document.createElement('div');
-                    aiB.className = 'msg-bubble msg-ai';
-                    aiB.innerText = `${emoji} [智小伴 · ${data.qwen_model_used || "阿里云千问"}] ${aiResponse}`;
-                    chatBox.appendChild(aiB);
-                    chatBox.scrollTop = chatBox.scrollHeight;
-                    inputField.value = '';
-
-                    speakText(aiResponse, data.audio_data_url);
-                    toggleVoiceMic();
-                }, 1500);
-
+                }
             } else {
-                btn.style.background = 'linear-gradient(135deg, #10b981, #6366f1)';
-                btn.innerText = '🎤';
+                if (speechRecognitionInstance) {
+                    try { speechRecognitionInstance.stop(); } catch(e){}
+                }
+                stopRecordingUI();
             }
         }
 

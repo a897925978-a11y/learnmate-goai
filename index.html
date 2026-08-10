@@ -980,7 +980,7 @@
                         <span style="font-weight:800; font-size:0.88rem;">🎙️ 语音消息 (点击播放原始音频)</span>
                         <span style="font-size:1.1rem; animation:pulse-dot 1.5s infinite;">🔊</span>
                     </div>
-                    <div style="font-size:0.75rem; color:rgba(255,255,255,0.9); margin-top:0.4rem; border-top:1px dashed rgba(255,255,255,0.35); padding-top:0.3rem;">
+                    <div style="font-size:0.75rem; color:rgba(255,255,255,0.9); margin-top:0.4rem; border-top:1px dashed rgba(255,255,255,0.35); padding-top:0.3rem;" class="voice-transcript-note">
                         💬 自动转文字：${text || '后端 ASR 解码转录中...'}
                     </div>
                 `;
@@ -1015,6 +1015,12 @@
                 });
                 const data = await res.json();
                 const aiResponse = data.ai_voice_response_text;
+
+                // 动态更新语音条转录文字（若有后端真实解码结果）
+                const transcriptNote = userBubble.querySelector('.voice-transcript-note');
+                if (transcriptNote && data.student_input_transcript) {
+                    transcriptNote.innerText = `💬 自动转文字：${data.student_input_transcript}`;
+                }
 
                 // 更新卡通伴读小人物气泡与对话框
                 const bubbleEl = document.getElementById('mascot-speech-bubble');

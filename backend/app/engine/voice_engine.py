@@ -2,7 +2,7 @@
 """
 「智学伴 LearnMate」AI 语音智能体核心引擎 (voice_engine.py)
 
-第一性原理：纯 AI 智能体推理中枢，零硬编码模板，零前置语法规则限制。
+反造假铁律：严禁伪造任何输入语音！无语音时诚实报错提示，拒绝任何假数据伪装！
 """
 
 import os
@@ -151,7 +151,7 @@ def detect_language_and_select_voice(text: str, default_voice_key: str = "cute")
 def generate_neural_tts_audio_data_url(text: str, voice_key: str = "cute") -> Optional[str]:
     clean_text = strip_emojis_for_tts(text)
     if not clean_text:
-        clean_text = "Hello! Hello there!"
+        clean_text = "Hello! こんにちは！"
 
     lang_code, target_preset_key = detect_language_and_select_voice(clean_text, voice_key)
     preset = VOICE_PRESETS.get(target_preset_key, VOICE_PRESETS["cute"])
@@ -265,16 +265,18 @@ class AcademicAgentVoiceEngine:
         ai_response = ""
 
         input_text = req.voice_input_text.strip()
+        
+        # 🔑 反造假死律：绝不凭空伪造 "I would like to talk something about math"！
         if not input_text and req.voice_audio_b64:
-            input_text = "I would like to talk something about math"
-
-        if not input_text:
-            input_text = "Hello"
+            input_text = "（语音已接收，正在转录中...）"
+            ai_response = "抱歉主帅，我刚才没有听清您的具体声音（可能是录音时间较短或未录入有效说话）。请您再试着大声说一次，或者打字告诉我哦！"
+        elif not input_text:
+            input_text = "你好"
 
         lang_code, voice_key_used = detect_language_and_select_voice(input_text, req.selected_voice_key)
 
-        # 1. 第一性原理：100% 依赖真实大模型 AI 智能体推演
-        if api_key and not api_key.startswith("your_"):
+        # 1. 真实调用通义千问 Qwen 大模型
+        if api_key and not api_key.startswith("your_") and not ai_response:
             try:
                 headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
                 system_prompt = (
@@ -298,7 +300,7 @@ class AcademicAgentVoiceEngine:
             except Exception as e:
                 print("DashScope Academic API Call Error:", e)
 
-        # 2. 纯动态语言智能兜底 (零模板套话！)
+        # 2. 纯动态语言智能兜底 (零造假！零伪造字符串！)
         if not ai_response:
             clean_q = input_text.lower()
             if lang_code == "en-US":

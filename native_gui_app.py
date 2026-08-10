@@ -18,7 +18,12 @@ import customtkinter as ctk
 import tkinter as tk
 from tkinter import messagebox
 
-# 🚀 ⚡ 1. 开启 CPU 多核并行计算与 OpenMP / MKL / OpenBLAS 极速加速
+# 🛡️ 🔑 1. 显卡零占用防护 (GPU Zero-Touch Shield) — 绝不占用主帅正在运行任务的 GPU/显卡！
+os.environ["CUDA_VISIBLE_DEVICES"] = ""
+os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+os.environ["TORCH_CUDA_ALLOC_CONF"] = ""
+
+# 🚀 ⚡ 2. 开启 CPU 多核并行计算与 OpenMP / MKL / OpenBLAS 极速加速
 CPU_CORES = str(os.cpu_count() or 4)
 os.environ["OMP_NUM_THREADS"] = CPU_CORES
 os.environ["MKL_NUM_THREADS"] = CPU_CORES

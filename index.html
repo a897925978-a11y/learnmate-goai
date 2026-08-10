@@ -1558,6 +1558,8 @@
             }
         }
 
+        let latestSpokenTranscript = '';
+
         function initSpeechRecognition() {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             if (!SpeechRecognition) {
@@ -1579,6 +1581,7 @@
                 for (let i = 0; i < event.results.length; i++) {
                     transcript += event.results[i][0].transcript;
                 }
+                latestSpokenTranscript = transcript.trim(); // 🔑 锁死最新字句，解决 50ms 异步清空撕裂死锁！
                 const inputField = document.getElementById('chat-input-field');
                 if (inputField) inputField.value = transcript;
 
@@ -1657,18 +1660,24 @@
                             const inputField = document.getElementById('chat-input-field');
                             const currentText = inputField ? inputField.value.trim() : '';
 
-                            // 🔑 核心整改：当处于实时通话状态 (isContinuousCallActive = true) 时，100% 走 WebSocket，绝不触发 HTTP POST！
+                            // 🔑 优先锁定 latestSpokenTranscript，彻底解决 50ms 异步清空导致 text = '' 的死锁 Bug！
+                            const finalText = (latestSpokenTranscript || currentText).trim();
+
                             if (isContinuousCallActive) {
                                 if (inputField) inputField.value = '';
+                                latestSpokenTranscript = ''; // 发送后清空全局变量
 
-                                sendWebSocketFrame({
-                                    type: "input_audio_buffer.append",
-                                    text: currentText,
-                                    audio_b64: activeAudioB64,
-                                    voice_key: selectedVoiceKey
-                                });
+                                if (finalText) {
+                                    sendWebSocketFrame({
+                                        type: "input_audio_buffer.append",
+                                        text: finalText,
+                                        audio_b64: activeAudioB64,
+                                        voice_key: selectedVoiceKey
+                                    });
+                                }
                             } else {
-                                sendChatMessage(activeAudioBlobUrl, activeAudioB64, currentText);
+                                sendChatMessage(activeAudioBlobUrl, activeAudioB64, finalText);
+                                latestSpokenTranscript = '';
                             }
                         };
                         reader.readAsDataURL(blob);

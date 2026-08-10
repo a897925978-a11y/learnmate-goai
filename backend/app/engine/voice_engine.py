@@ -246,7 +246,7 @@ def transcribe_audio_b64(audio_b64: str) -> Optional[str]:
             except Exception as e:
                 print("Gemini Audio ASR Exception:", e)
 
-        # 2. 本地 SpeechRecognition + pydub (ffmpeg) 解码 WebM -> WAV -> ASR
+        # 2. 本地 SpeechRecognition + pydub (ffmpeg) 解码 WebM -> WAV -> ASR (极速非阻塞)
         try:
             import speech_recognition as sr
             from pydub import AudioSegment
@@ -262,15 +262,14 @@ def transcribe_audio_b64(audio_b64: str) -> Optional[str]:
             r = sr.Recognizer()
             with sr.AudioFile(wav_path) as source:
                 audio_data = r.record(source)
-                # 尝试多语言识别 (中文/英文)
                 try:
                     text = r.recognize_google(audio_data, language="zh-CN")
                 except Exception:
-                    text = r.recognize_google(audio_data, language="en-US")
+                    text = None
 
                 if text and text.strip():
-                    os.remove(tmp_in_path)
-                    os.remove(wav_path)
+                    if os.path.exists(tmp_in_path): os.remove(tmp_in_path)
+                    if os.path.exists(wav_path): os.remove(wav_path)
                     return text.strip()
 
             if os.path.exists(tmp_in_path): os.remove(tmp_in_path)

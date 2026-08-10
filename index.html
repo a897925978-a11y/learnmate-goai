@@ -786,37 +786,26 @@
         </div>
     </div>
 
-    <!-- 🦊 桌面悬浮卡通伴读小人物面板「智小伴」(Standalone Cartoon Mascot Buddy Widget) -->
-    <div id="floating-cartoon-mascot-box" style="position:fixed; bottom:20px; right:20px; z-index:300; background:rgba(15, 23, 42, 0.96); border:2px solid rgba(16, 185, 129, 0.5); border-radius:24px; padding:1.25rem; width:340px; box-shadow:0 16px 50px rgba(0,0,0,0.7); backdrop-filter:blur(24px); transition:all 0.3s cubic-bezier(0.4, 0, 0.2, 1);">
-        <!-- 卡通人物顶部 Header -->
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:0.6rem;">
-            <div style="display:flex; align-items:center; gap:0.6rem;">
-                <div style="width:10px; height:10px; border-radius:50%; background:#34d399; box-shadow:0 0 10px #34d399;"></div>
-                <div style="font-size:0.95rem; font-weight:800; color:#fff;" id="mascot-title-text">智小伴 (千问 CosyVoice)</div>
+    <!-- 🦊 桌面纯净动漫卡通伴读小助手「智小伴」(Pure Floating Anime Mascot Buddy Character Widget) -->
+    <div id="floating-cartoon-mascot-box" style="position:fixed; bottom:24px; right:24px; z-index:300; display:flex; flex-direction:column; align-items:center; gap:0.5rem;">
+        <!-- 动漫卡通小人物头像主体 -->
+        <div style="position:relative; cursor:pointer;" onclick="toggleVoiceMic()" title="点击与「智小伴」开启全双工语音伴学 (双击切换音色)">
+            <div id="mascot-avatar-display" style="width:76px; height:76px; border-radius:50%; background:linear-gradient(135deg, #10b981 0%, #6366f1 100%); display:flex; align-items:center; justify-content:center; font-size:3.2rem; box-shadow:0 0 30px rgba(16,185,129,0.7); animation:float-bounce 3s infinite ease-in-out; border:3px solid rgba(255,255,255,0.25);">
+                🦊
             </div>
-            <button onclick="openVoiceSelectorModal()" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#cbd5e1; padding:0.25rem 0.6rem; border-radius:9999px; font-size:0.75rem; cursor:pointer;">
-                ⚙️ 换音色
-            </button>
+            <!-- 在线动效呼吸点 -->
+            <div style="position:absolute; bottom:2px; right:2px; width:16px; height:16px; border-radius:50%; background:#34d399; border:3px solid #0f172a; box-shadow:0 0 10px #34d399;" id="cartoon-status-dot"></div>
         </div>
 
-        <!-- 3D/2D 卡通小人物与对话气泡主体 -->
-        <div style="display:flex; gap:0.85rem; align-items:flex-start; margin-bottom:0.85rem;">
-            <div style="position:relative; flex-shrink:0;">
-                <div id="mascot-avatar-display" style="width:68px; height:68px; border-radius:50%; background:linear-gradient(135deg, #10b981 0%, #6366f1 100%); display:flex; align-items:center; justify-content:center; font-size:2.8rem; box-shadow:0 0 25px rgba(16,185,129,0.5); animation:float-bounce 3s infinite ease-in-out;">
-                    🦊
-                </div>
-            </div>
-            <div style="flex:1; background:rgba(30, 41, 59, 0.9); border-radius:14px; padding:0.75rem; border:1px solid rgba(255,255,255,0.15); font-size:0.82rem; color:#f8fafc; line-height:1.4; max-height:110px; overflow-y:auto;" id="mascot-speech-bubble">
-                嗷呜~ 你好！我是你的 AI 伴读小狐狸【智小伴】！在聊天框输入或对我说话（例如发“你好”），我会通过阿里云千问 API 实时为你解答！
-            </div>
-        </div>
-
-        <!-- 极光波形画布与交互按钮组 -->
-        <div style="display:flex; align-items:center; gap:0.75rem;">
-            <canvas id="auroraWaveCanvas" width="160" height="32" style="border-radius:8px; background:rgba(0,0,0,0.3); flex:1;"></canvas>
+        <!-- 极光音频波形画布与换音色隐式按纽 -->
+        <div style="background:rgba(15, 23, 42, 0.92); border:1px solid rgba(16, 185, 129, 0.4); border-radius:9999px; padding:0.35rem 0.85rem; display:flex; align-items:center; gap:0.6rem; box-shadow:0 8px 30px rgba(0,0,0,0.5); backdrop-filter:blur(16px);">
+            <canvas id="auroraWaveCanvas" width="70" height="20" style="border-radius:4px; background:rgba(0,0,0,0.2);"></canvas>
             
-            <button id="mic-toggle-btn" onclick="toggleVoiceMic()" style="background:linear-gradient(135deg, #10b981, #6366f1); border:none; color:#fff; width:42px; height:42px; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:1.25rem; box-shadow:0 0 20px rgba(16,185,129,0.6); flex-shrink:0;">
+            <button id="mic-toggle-btn" onclick="toggleVoiceMic()" style="background:none; border:none; color:#34d399; cursor:pointer; font-size:1.1rem; font-weight:800;" title="切换麦克风">
                 🎤
+            </button>
+            <button onclick="openVoiceSelectorModal()" style="background:none; border:none; color:#a5b4fc; cursor:pointer; font-size:0.85rem;" title="切换卡通音色">
+                ⚙️
             </button>
         </div>
     </div>

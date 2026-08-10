@@ -994,6 +994,13 @@
         }
 
         async function sendChatMessage(voiceAudioBlobUrl = null, voiceAudioB64 = null, voiceText = '') {
+            if (isContinuousCallActive) {
+                // 🔑 实时电话对讲模式开启时，100% 屏蔽 HTTP POST，防止产生微信语音条与接口冲突！
+                const input = document.getElementById('chat-input-field');
+                if (input) input.value = '';
+                return;
+            }
+
             const input = document.getElementById('chat-input-field');
             const text = (voiceText || input.value).trim();
             if (!text && !voiceAudioB64) return;
@@ -1649,7 +1656,20 @@
                             activeAudioB64 = reader.result;
                             const inputField = document.getElementById('chat-input-field');
                             const currentText = inputField ? inputField.value.trim() : '';
-                            sendChatMessage(activeAudioBlobUrl, activeAudioB64, currentText);
+
+                            // 🔑 核心整改：当处于实时通话状态 (isContinuousCallActive = true) 时，100% 走 WebSocket，绝不触发 HTTP POST！
+                            if (isContinuousCallActive) {
+                                if (inputField) inputField.value = '';
+
+                                sendWebSocketFrame({
+                                    type: "input_audio_buffer.append",
+                                    text: currentText,
+                                    audio_b64: activeAudioB64,
+                                    voice_key: selectedVoiceKey
+                                });
+                            } else {
+                                sendChatMessage(activeAudioBlobUrl, activeAudioB64, currentText);
+                            }
                         };
                         reader.readAsDataURL(blob);
                     };
@@ -1813,6 +1833,14 @@
 
                     audio.onended = () => {
                         isAISpeaking = false;
+                        // 📞 Task 3: 像电话一样的全自动连续听讲 (AI 播音结束 300ms 内自动重新唤醒麦克风)
+                        if (isContinuousCallActive) {
+                            setTimeout(() => {
+                                if (isContinuousCallActive && !isRecording) {
+                                    toggleVoiceMic();
+                                }
+                            }, 300);
+                        }
                     };
 
                     audio.play().catch(err => {

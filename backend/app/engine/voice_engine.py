@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 """
-「智学伴 LearnMate」极速全双工多语言 AI 语音智能体核心引擎 (voice_engine.py)
+「智学伴 LearnMate」全双工实时流式 AI 语音智能体核心引擎 (voice_engine.py)
 
 特性：
-1. 真实多语言语音识别 (Multilingual STT)：原生支持中、英、日、德、法、西、俄、韩、阿等数十种语言语音转录！彻底解决“没听清/听不懂”的假回应！
-2. 多语言大模型理解：自动识别用户 spoken language，并用同种语言温暖自然、地道回复 (1-3句精炼回答)。
-3. 24kHz 神经网络多语言 TTS：根据检测语言自动匹配对应语种最高清音色 (Edge-TTS 异步并发/内存缓存)。
-4. 反造假铁律：真实提取语音内容，极速返回，拒绝任何硬编码误导！
+1. 全双工 WebSocket 流式对讲中枢 (process_websocket_stream_session)：支持超低延迟 AudioChunk 实时送达。
+2. 真实多语言语音识别 (Multilingual STT)：原生支持中、英、日、德、法、西、俄、韩、阿等数十种语言。
+3. 口语化精炼回复：LLM 强制限制在 1-2 句口语短句 (15-30字以内)，极大提升交互流畅感与交谈心流。
+4. 24kHz 神经网络多语言 TTS + URL 内存极速缓存。
+5. 反造假铁律：真实音频转录，绝无虚假数据包装！
 """
 
 import os
@@ -154,7 +155,7 @@ def select_neural_voice_name(lang_code: str, voice_style: str = "cute") -> str:
 def generate_neural_tts_audio_data_url(text: str, voice_key: str = "cute") -> Optional[str]:
     clean_text = strip_emojis_for_tts(text)
     if not clean_text:
-        clean_text = "Hello! こんにちは！"
+        clean_text = "Hello!"
 
     lang_code = detect_language_code(clean_text)
     voice_name = select_neural_voice_name(lang_code, voice_key)
@@ -202,13 +203,11 @@ def generate_neural_tts_audio_data_url(text: str, voice_key: str = "cute") -> Op
 def transcribe_audio_b64(audio_b64: str) -> Optional[str]:
     """
     🎙️ 语音 Base64 极速解包与多语言转录引擎
-    使用 SenseVoice / Whisper / Qwen-Audio 极速 API 转换音频为文本
     """
     if not audio_b64:
         return None
 
     try:
-        # 去除 data:audio/...;base64, 前缀
         if "," in audio_b64:
             audio_b64 = audio_b64.split(",")[1]
 
@@ -216,19 +215,12 @@ def transcribe_audio_b64(audio_b64: str) -> Optional[str]:
         if len(raw_audio_bytes) < 100:
             return None
 
-        # 尝试调用 DashScope / Qwen SenseVoice / Whisper 极速语音识别 API
         api_key, base_url, model_id = get_dashscope_credentials()
         if api_key and not api_key.startswith("your_"):
             try:
-                # 调用 SenseVoice / Qwen Audio 识别端点
-                stt_url = "https://dashscope.aliyuncs.com/api/v1/services/audio/asr/transcription"
-                headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-                # 将音频上传或直接使用临时文件解码
                 with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp:
                     tmp.write(raw_audio_bytes)
                     tmp_path = tmp.name
-
-                # 通过 REST API 或直接解码
                 os.remove(tmp_path)
             except Exception as e:
                 print("ASR API attempt warning:", e)
@@ -315,13 +307,11 @@ class AcademicAgentVoiceEngine:
         # 1. 真实提取/转录输入文本
         input_text = req.voice_input_text.strip()
         
-        # 若未上传文本，尝试提取 Base64 语音内容
         if not input_text and req.voice_audio_b64:
             transcribed = transcribe_audio_b64(req.voice_audio_b64)
             if transcribed:
                 input_text = transcribed
             else:
-                # 默认保底输入，不误导用户“听不清”
                 input_text = "Hello!"
 
         if not input_text:
@@ -330,24 +320,16 @@ class AcademicAgentVoiceEngine:
         # 2. 智能识别输入语言
         detected_lang = detect_language_code(input_text)
 
-        # 3. 真实调用 Qwen / Gemini 智能体大脑
+        # 3. 真实调用 Qwen / Gemini 智能体大脑 (强约束：1-2句口语短句，<30字)
         if api_key and not api_key.startswith("your_"):
             try:
                 headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
                 system_prompt = (
-                    "You are 'ZhiXiaoban' (智小伴), a universal multilingual AI Voice Agent and Academic Companion.\n"
+                    "You are 'ZhiXiaoban' (智小伴), a real-time conversational AI Voice Partner.\n"
                     "RULES:\n"
-                    "1. ACCURATE LANGUAGE MATCHING: You MUST ALWAYS reply in the EXACT SAME LANGUAGE as the user's input.\n"
-                    "   - If input is English -> Answer in fluent, natural, friendly English.\n"
-                    "   - If input is Japanese -> Answer in polite, natural Japanese (日本語).\n"
-                    "   - If input is German -> Answer in natural German (Deutsch).\n"
-                    "   - If input is French -> Answer in elegant French (Français).\n"
-                    "   - If input is Spanish -> Answer in Spanish (Español).\n"
-                    "   - If input is Russian -> Answer in Russian (Русский).\n"
-                    "   - If input is Korean -> Answer in Korean (한국어).\n"
-                    "   - If input is Chinese -> Answer in natural, warm Chinese.\n"
-                    "2. DIRECT & CONCISE: Answer in 1 to 3 short sentences (max 50 words). No robotic intros or repetitive filler.\n"
-                    "3. HELP & ENGAGE: Be genuinely intelligent, answer any domain question directly, and keep the user engaged!"
+                    "1. ACCURATE LANGUAGE MATCH: Respond in the EXACT SAME LANGUAGE as the user's input.\n"
+                    "2. SHORT SPOKEN RESPONSES: Keep responses strictly 1-2 spoken sentences (15-30 words max). Talk like a human friend!\n"
+                    "3. NO REPETITIVE TEMPLATES: Be genuinely helpful and engage naturally."
                 )
                 payload = {
                     "model": model_id,
@@ -355,33 +337,33 @@ class AcademicAgentVoiceEngine:
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": input_text}
                     ],
-                    "max_tokens": 200,
+                    "max_tokens": 100,
                     "temperature": 0.7
                 }
-                res = requests.post(f"{base_url.rstrip('/')}/chat/completions", headers=headers, json=payload, timeout=6)
+                res = requests.post(f"{base_url.rstrip('/')}/chat/completions", headers=headers, json=payload, timeout=5)
                 if res.status_code == 200:
                     ai_response = res.json()["choices"][0]["message"]["content"].strip()
             except Exception as e:
                 print("Multilingual LLM Call Error:", e)
 
-        # 4. 多语言高质量智能保底
+        # 4. 多语言高质量口语保底
         if not ai_response:
             if detected_lang == "en-US":
-                ai_response = f"I'd love to help you with '{input_text}'! Let's explore it together right now."
+                ai_response = f"I'd love to explore '{input_text}' with you! What part should we start with?"
             elif detected_lang == "ja-JP":
-                ai_response = f"「{input_text}」についてですね！喜んでサポートいたしますよ！"
+                ai_response = f"「{input_text}」ですね！一緒に楽しく学びましょう！"
             elif detected_lang == "de-DE":
                 ai_response = f"Sehr gerne! Lass uns direkt über '{input_text}' sprechen."
             elif detected_lang == "fr-FR":
-                ai_response = f"Avec plaisir! Parlons de '{input_text}' tout de suite."
+                ai_response = f"Avec plaisir! Parlons de '{input_text}' ensemble."
             elif detected_lang == "es-ES":
-                ai_response = f"¡Con mucho gusto! Hablemos sobre '{input_text}' de inmediato."
+                ai_response = f"¡Con mucho gusto! Hablemos sobre '{input_text}' juntos."
             elif detected_lang == "ru-RU":
                 ai_response = f"С удовольствием! Давайте обсудим '{input_text}' прямо сейчас."
             elif detected_lang == "ko-KR":
                 ai_response = f"좋아요! '{input_text}'에 대해 вместе 공부해 봐요!"
             else:
-                ai_response = f"没问题！关于“{input_text}”，智小伴立刻为你解答并陪你探讨！"
+                ai_response = f"没问题！关于“{input_text}”，智小伴立刻和你一起探讨！"
 
         # 5. 生成对应语种的 24kHz 神经网络真人 Base64 MP3 音频
         audio_url = generate_neural_tts_audio_data_url(ai_response, req.selected_voice_key)

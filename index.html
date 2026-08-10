@@ -1344,6 +1344,127 @@
             }
         }
 
+        /* 🎙️ 全双工 WebSocket 实时音视频流中枢 (WebSocket Voice Agent Client) */
+        let voiceWebSocket = null;
+        let vadAudioContext = null;
+        let vadAnalyserNode = null;
+        let vadSilenceTimer = null;
+        let isVadSpeaking = false;
+        const VAD_RMS_THRESHOLD = 0.015; // 动态 RMS 音能量门限
+        const VAD_SILENCE_DURATION_MS = 400; // 连续 400ms 静音切帧断句
+
+        function initVoiceWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws/voice/stream`;
+            
+            try {
+                voiceWebSocket = new WebSocket(wsUrl);
+                voiceWebSocket.onopen = () => {
+                    console.log("⚡ 全双工 AI 实时语音 WebSocket 通道已建立 (ws://voice/stream)");
+                };
+                voiceWebSocket.onmessage = (event) => {
+                    try {
+                        const msg = JSON.parse(event.data);
+                        if (msg.type === 'stt_transcript') {
+                            const overlaySpeaker = document.getElementById('overlay-speaker-label');
+                            if (overlaySpeaker) overlaySpeaker.innerText = "🎙️ 您正在说话：";
+                            const overlayText = document.getElementById('overlay-live-transcript');
+                            if (overlayText) overlayText.innerText = `“${msg.text}”`;
+                        } else if (msg.type === 'ai_text_chunk') {
+                            const overlaySpeaker = document.getElementById('overlay-speaker-label');
+                            if (overlaySpeaker) overlaySpeaker.innerText = "🦊 智小伴回答中：";
+                            const overlayText = document.getElementById('overlay-live-transcript');
+                            if (overlayText) overlayText.innerText = msg.text;
+
+                            const bubbleEl = document.getElementById('mascot-speech-bubble');
+                            if (bubbleEl) bubbleEl.innerText = msg.text;
+                        } else if (msg.type === 'audio_chunk') {
+                            if (msg.audio_b64) {
+                                speakText(msg.text || "", msg.audio_b64);
+                            }
+                        } else if (msg.type === 'interrupted') {
+                            console.log("⚡ 接收到服务器 < 200ms 瞬间打断确认！");
+                        }
+                    } catch(e) {
+                        console.error("WS Frame Parse Error:", e);
+                    }
+                };
+                voiceWebSocket.onclose = () => {
+                    setTimeout(initVoiceWebSocket, 3500);
+                };
+                voiceWebSocket.onerror = (err) => {
+                    console.error("WebSocket stream error:", err);
+                };
+            } catch(e) {
+                console.error("Init WebSocket Error:", e);
+            }
+        }
+
+        function sendWebSocketFrame(payload) {
+            if (voiceWebSocket && voiceWebSocket.readyState === WebSocket.OPEN) {
+                voiceWebSocket.send(JSON.stringify(payload));
+            }
+        }
+
+        /* 🎧 Web Audio API RMS VAD 无感能量检测器 */
+        function startWebAudioVAD(stream) {
+            try {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                vadAudioContext = new AudioCtx();
+                const source = vadAudioContext.createMediaStreamSource(stream);
+                vadAnalyserNode = vadAudioContext.createAnalyser();
+                vadAnalyserNode.fftSize = 512;
+                source.connect(vadAnalyserNode);
+
+                const pcmBuffer = new Float32Array(vadAnalyserNode.fftSize);
+
+                function checkVADLoop() {
+                    if (!isContinuousCallActive && !isRecording) return;
+                    
+                    vadAnalyserNode.getFloatTimeDomainData(pcmBuffer);
+                    let sumSq = 0;
+                    for (let i = 0; i < pcmBuffer.length; i++) {
+                        sumSq += pcmBuffer[i] * pcmBuffer[i];
+                    }
+                    const rms = Math.sqrt(sumSq / pcmBuffer.length);
+
+                    if (rms > VAD_RMS_THRESHOLD) {
+                        // ⚡ 检查打断：若 AI 正在播音，200ms 内立刻瞬间中断！
+                        if (isAISpeaking) {
+                            interruptAISpeech();
+                            sendWebSocketFrame({ type: "interrupt" });
+                        }
+
+                        if (!isVadSpeaking) {
+                            isVadSpeaking = true;
+                        }
+
+                        if (vadSilenceTimer) {
+                            clearTimeout(vadSilenceTimer);
+                            vadSilenceTimer = null;
+                        }
+                    } else if (isVadSpeaking) {
+                        if (!vadSilenceTimer) {
+                            vadSilenceTimer = setTimeout(() => {
+                                isVadSpeaking = false;
+                            }, VAD_SILENCE_DURATION_MS);
+                        }
+                    }
+
+                    requestAnimationFrame(checkVADLoop);
+                }
+
+                requestAnimationFrame(checkVADLoop);
+            } catch (e) {
+                console.warn("Web Audio VAD Error:", e);
+            }
+        }
+
+        // 初始化 WebSocket 连接
+        window.addEventListener('load', () => {
+            initVoiceWebSocket();
+        });
+
         function startGeminiLiveContinuousCall() {
             isContinuousCallActive = true;
             document.getElementById('live-voice-call-overlay').style.display = 'flex';
@@ -1530,6 +1651,7 @@
             activeAudioB64 = null;
             if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
                 navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+                    startWebAudioVAD(stream); // 🎧 启动 Web Audio API RMS VAD 能量检测器与打断中枢
                     mediaRecorderInstance = new MediaRecorder(stream);
                     mediaRecorderInstance.ondataavailable = e => {
                         if (e.data.size > 0) recordedAudioChunks.push(e.data);

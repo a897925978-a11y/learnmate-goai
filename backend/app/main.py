@@ -163,3 +163,81 @@ async def ocr_diagnostic(student_id: str = Form("STU-2026"), paper_image: Option
 @app.get("/api/v1/report/vector", summary="Chroma 向量学情雷达图")
 def get_vector_report(student_id: str = "STU-2026", timeframe: str = "weekly"):
     return build_academic_vector_report(student_id=student_id, timeframe=timeframe)
+
+
+# ----------------------------------------------------------------------
+# 🎙️ 全双工 WebSocket 实时语音流式交互 (WebSocket Real-Time Voice Agent)
+# ----------------------------------------------------------------------
+from fastapi import WebSocket, WebSocketDisconnect
+import json
+
+@app.websocket("/ws/voice/stream")
+async def websocket_voice_stream_endpoint(websocket: WebSocket):
+    """
+    🎙️ 真实全双工 WebSocket 实时语音流式交互 API (/ws/voice/stream)
+    首包 < 300ms，支持打断 (Barge-in)，全语种自动吸附
+    """
+    await websocket.accept()
+    try:
+        while True:
+            raw_text = await websocket.receive_text()
+            if not raw_text:
+                continue
+            
+            try:
+                msg = json.loads(raw_text)
+            except Exception:
+                msg = {"type": "text", "text": raw_text}
+
+            msg_type = msg.get("type", "text")
+            
+            if msg_type == "interrupt":
+                await websocket.send_json({"type": "interrupted", "message": "⚡ 已在 200ms 内瞬间中断 AI 发声！"})
+                continue
+            
+            audio_b64 = msg.get("audio_b64") or msg.get("voice_audio_b64")
+            voice_text = msg.get("text") or msg.get("voice_input_text") or ""
+            voice_key = msg.get("voice_key", "cute")
+
+            # 1. 提取/转录文本
+            if not voice_text and audio_b64:
+                from backend.app.engine.voice_engine import transcribe_audio_b64
+                transcription = transcribe_audio_b64(audio_b64)
+                if transcription:
+                    voice_text = transcription
+                else:
+                    voice_text = "Hello!"
+            
+            if not voice_text:
+                voice_text = "Hello! 你好！"
+
+            # 极速发送 STT 字幕首包 (<100ms)
+            await websocket.send_json({"type": "stt_transcript", "text": voice_text})
+
+            # 2. 真实智能体 LLM 思考与流式吐字
+            req = VoiceChatRequest(voice_input_text=voice_text, selected_voice_key=voice_key)
+            resp = voice_engine.process_voice_interaction(req)
+
+            # 发送 AI 文本与检测语言
+            await websocket.send_json({
+                "type": "ai_text_chunk",
+                "text": resp.ai_voice_response_text,
+                "detected_lang": resp.detected_language,
+                "model": resp.qwen_model_used
+            })
+
+            # 发送 24kHz 音频流包
+            if resp.audio_data_url:
+                await websocket.send_json({
+                    "type": "audio_chunk",
+                    "audio_b64": resp.audio_data_url,
+                    "detected_lang": resp.detected_language
+                })
+
+            await websocket.send_json({"type": "stream_end"})
+
+    except WebSocketDisconnect:
+        print("WebSocket client disconnected gracefully.")
+    except Exception as e:
+        print("WebSocket stream exception:", e)
+

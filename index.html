@@ -723,54 +723,57 @@
         </div>
     </div>
 
-    <!-- 🎙️ 豆包 / Gemini Live 风格音色与态度选择器 Modal -->
+    <!-- 🎙️ 阿里云通义千问 Qwen CosyVoice 萌宠卡通伴读音色选择器 Modal -->
     <div class="modal-backdrop" id="voice-selector-modal">
-        <div class="modal-card" style="max-width:550px;">
+        <div class="modal-card" style="max-width:560px; border:1px solid rgba(16, 185, 129, 0.4);">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
                 <div style="display:flex; align-items:center; gap:0.6rem;">
-                    <div style="font-size:1.6rem;">✨</div>
-                    <div style="font-size:1.25rem; font-weight:800; color:#fff;"> Gemini Live / 豆包全双工语音助手设置</div>
+                    <div style="font-size:2rem; animation:bounce 2s infinite;">🦊</div>
+                    <div>
+                        <div style="font-size:1.25rem; font-weight:800; color:#fff;">「智小伴」卡通伴读助手 · 千问 CosyVoice 说话风格</div>
+                        <div style="font-size:0.75rem; color:#34d399;">已绑定阿里云通义千问 Qwen3.5-Omni 全双工声学脑中枢</div>
+                    </div>
                 </div>
                 <button onclick="closeVoiceSelectorModal()" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:1.2rem;">✕</button>
             </div>
 
-            <p style="font-size:0.85rem; color:#94a3b8; margin-bottom:1.2rem;">
-                摸底诊断完成！请为孩子选择专属伴学 AI 的**音色性格**与**说话态度**：
+            <p style="font-size:0.85rem; color:#cbd5e1; margin-bottom:1.2rem;">
+                摸底诊断完成！请选择孩子的**卡通伴读萌宠形象**与**千问 CosyVoice 旗舰原声音色**：
             </p>
 
-            <div style="font-size:0.9rem; font-weight:700; color:#a5b4fc; margin-bottom:0.6rem;">1. 选择音色性别与性格 (Voice Persona)</div>
+            <div style="font-size:0.9rem; font-weight:700; color:#a5b4fc; margin-bottom:0.6rem;">1. 选择卡通伴读形象与千问 CosyVoice 旗舰音色</div>
             <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:0.75rem; margin-bottom:1.25rem;">
-                <div class="voice-card active" id="vcard-lily" onclick="selectVoiceCard('lily', 'Lily (温柔姐姐)')">
-                    <div style="font-size:1.8rem;">👩</div>
+                <div class="voice-card active" id="vcard-cute" onclick="selectVoiceCard('cute', '智小伴 (萌系卡拉卡通音)', 'cute')">
+                    <div style="font-size:2.2rem;">🦊</div>
                     <div>
-                        <div style="font-weight:700; font-size:0.95rem; color:#fff;">Lily (温柔姐姐)</div>
-                        <div style="font-size:0.75rem; color:#94a3b8;">女声 · 甜美温暖 · 擅长解压</div>
+                        <div style="font-weight:700; font-size:0.95rem; color:#fff;">智小伴 (萌系卡拉)</div>
+                        <div style="font-size:0.75rem; color:#34d399;">Qwen-Cosy 奶萌卡通音 · 趣味互动</div>
                     </div>
                 </div>
-                <div class="voice-card" id="vcard-leo" onclick="selectVoiceCard('leo', 'Leo (热血哥哥)')">
-                    <div style="font-size:1.8rem;">👨</div>
+                <div class="voice-card" id="vcard-sweet" onclick="selectVoiceCard('sweet', '知心姐姐 (千问温柔女声)', 'sweet')">
+                    <div style="font-size:2.2rem;">👩</div>
                     <div>
-                        <div style="font-weight:700; font-size:0.95rem; color:#fff;">Leo (热血哥哥)</div>
-                        <div style="font-size:0.75rem; color:#94a3b8;">男声 · 阳光激情 · 考前冲刺</div>
+                        <div style="font-weight:700; font-size:0.95rem; color:#fff;">知心姐姐 (温柔女声)</div>
+                        <div style="font-size:0.75rem; color:#94a3b8;">Qwen-Cosy 甜美原声 · 心理解压</div>
                     </div>
                 </div>
-                <div class="voice-card" id="vcard-prof" onclick="selectVoiceCard('prof', 'Professor (严谨导师)')">
-                    <div style="font-size:1.8rem;">🎓</div>
+                <div class="voice-card" id="vcard-boy" onclick="selectVoiceCard('boy', '阳光哥哥 (千问热血男声)', 'boy')">
+                    <div style="font-size:2.2rem;">👦</div>
                     <div>
-                        <div style="font-weight:700; font-size:0.95rem; color:#fff;">Professor (严谨导师)</div>
-                        <div style="font-size:0.75rem; color:#94a3b8;">男声 · 稳重专业 · 逻辑严密</div>
+                        <div style="font-weight:700; font-size:0.95rem; color:#fff;">阳光哥哥 (热血男声)</div>
+                        <div style="font-size:0.75rem; color:#94a3b8;">Qwen-Cosy 阳光音色 · 冲刺解题</div>
                     </div>
                 </div>
-                <div class="voice-card" id="vcard-max" onclick="selectVoiceCard('max', 'Max (幽默死党)')">
-                    <div style="font-size:1.8rem;">🤡</div>
+                <div class="voice-card" id="vcard-master" onclick="selectVoiceCard('master', '智囊导师 (千问学术男声)', 'master')">
+                    <div style="font-size:2.2rem;">🦉</div>
                     <div>
-                        <div style="font-weight:700; font-size:0.95rem; color:#fff;">Max (幽默死党)</div>
-                        <div style="font-size:0.75rem; color:#94a3b8;">男声 · 梗多风趣 · 游戏化比喻</div>
+                        <div style="font-weight:700; font-size:0.95rem; color:#fff;">智囊导师 (学术男声)</div>
+                        <div style="font-size:0.75rem; color:#94a3b8;">Qwen-Cosy 沉稳音色 · 深度拓扑</div>
                     </div>
                 </div>
             </div>
 
-            <div style="font-size:0.9rem; font-weight:700; color:#a5b4fc; margin-bottom:0.6rem;">2. 说话态度与伴学姿态 (Persona Attitude)</div>
+            <div style="font-size:0.9rem; font-weight:700; color:#a5b4fc; margin-bottom:0.6rem;">2. 说话姿态与伴学语气 (Persona Attitude)</div>
             <div style="display:flex; gap:0.5rem; margin-bottom:1.5rem;">
                 <button class="attitude-btn active" id="att-friend" onclick="selectAttitude('friend', '同辈死党 (阿德勒共情)')">🤝 同辈死党 (共情)</button>
                 <button class="attitude-btn" id="att-coach" onclick="selectAttitude('coach', '严厉教练 (目标冲刺)')">🏆 严厉教练 (冲刺)</button>
@@ -778,25 +781,35 @@
             </div>
 
             <button class="btn btn-primary" style="width:100%; padding:0.85rem; font-size:1rem;" onclick="startGeminiLiveVoiceSession()">
-                🎙️ 锁定配置，开启 Gemini Live 全双工语音伴学
+                🎙️ 锁定卡通形象与千问 CosyVoice 原音伴学
             </button>
         </div>
     </div>
 
-    <!-- 🎙️ 右下角 Gemini Live 动态极光音频波形浮窗 Widget -->
-    <div id="floating-gemini-live-bar" style="position:fixed; bottom:20px; right:20px; z-index:300; background:rgba(15, 23, 42, 0.95); border:1px solid rgba(99, 102, 241, 0.4); border-radius:9999px; padding:0.5rem 1.25rem; display:flex; align-items:center; gap:1rem; box-shadow:0 8px 32px rgba(0,0,0,0.5); backdrop-filter:blur(16px);">
-        <div style="display:flex; align-items:center; gap:0.5rem;">
-            <div style="width:12px; height:12px; border-radius:50%; background:#10b981; box-shadow:0 0 10px #10b981; animation:pulse-dot 1.5s infinite;"></div>
-            <div style="font-size:0.85rem; font-weight:700; color:#fff;" id="active-voice-name">Gemini Live · Lily</div>
+    <!-- 🦊 右下角「智小伴」卡通萌宠 3D/2D 浮窗 Widget -->
+    <div id="floating-cartoon-avatar-bar" style="position:fixed; bottom:20px; right:20px; z-index:300; background:rgba(15, 23, 42, 0.96); border:1px solid rgba(16, 185, 129, 0.5); border-radius:28px; padding:0.65rem 1.25rem; display:flex; align-items:center; gap:1rem; box-shadow:0 12px 40px rgba(0,0,0,0.6); backdrop-filter:blur(20px);">
+        <div style="position:relative; cursor:pointer;" onclick="openVoiceSelectorModal()">
+            <div style="width:48px; height:48px; border-radius:50%; background:linear-gradient(135deg, #10b981, #6366f1); display:flex; align-items:center; justify-content:center; font-size:1.8rem; box-shadow:0 0 20px rgba(16,185,129,0.5); animation:pulse-glow 2s infinite;" id="cartoon-avatar-emoji">
+                🦊
+            </div>
+            <div style="position:absolute; bottom:-2px; right:-2px; width:14px; height:14px; border-radius:50%; background:#34d399; border:2px solid #0f172a;" id="cartoon-status-dot"></div>
         </div>
 
-        <canvas id="auroraWaveCanvas" width="100" height="30" style="border-radius:6px; background:rgba(0,0,0,0.2);"></canvas>
+        <div>
+            <div style="display:flex; align-items:center; gap:0.4rem;">
+                <div style="font-size:0.9rem; font-weight:800; color:#fff;" id="active-voice-name">智小伴 (萌系卡拉)</div>
+                <span class="status-badge" style="font-size:0.65rem; padding:0.1rem 0.4rem;">Qwen CosyVoice</span>
+            </div>
+            <div style="font-size:0.75rem; color:#a5b4fc; margin-top:0.1rem;" id="active-voice-subtitle">随时对小狐狸说话吧~</div>
+        </div>
 
-        <button id="mic-toggle-btn" onclick="toggleVoiceMic()" style="background:linear-gradient(135deg, #6366f1, #ec4899); border:none; color:#fff; width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:1.1rem; box-shadow:0 0 15px rgba(99,102,241,0.5);">
+        <canvas id="auroraWaveCanvas" width="90" height="28" style="border-radius:6px; background:rgba(0,0,0,0.25);"></canvas>
+
+        <button id="mic-toggle-btn" onclick="toggleVoiceMic()" style="background:linear-gradient(135deg, #10b981, #6366f1); border:none; color:#fff; width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:1.2rem; box-shadow:0 0 18px rgba(16,185,129,0.5);">
             🎤
         </button>
-        <button onclick="openVoiceSelectorModal()" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#cbd5e1; padding:0.35rem 0.75rem; border-radius:9999px; font-size:0.75rem; font-weight:600; cursor:pointer;">
-            ⚙️ 换音色
+        <button onclick="openVoiceSelectorModal()" style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.18); color:#cbd5e1; padding:0.4rem 0.8rem; border-radius:9999px; font-size:0.75rem; font-weight:700; cursor:pointer;">
+            ⚙️ 切换卡通形象
         </button>
     </div>
 
@@ -960,18 +973,32 @@
         function closeProfileModal() { document.getElementById('profile-modal').style.display = 'none'; }
         function closeCrisisModal() { document.getElementById('crisis-modal').style.display = 'none'; }
 
-        /* 🎙️ 豆包 / Gemini Live 音色与态度选择器 JS 控制器 */
-        let selectedVoiceName = 'Lily (温柔姐姐)';
+        /* 🎙️ 阿里云通义千问 Qwen CosyVoice 卡通伴读助手 JS 控制器 */
+        let selectedVoiceKey = 'cute';
+        let selectedVoiceName = '智小伴 (萌系卡拉卡通音)';
         let selectedAttitudeName = '同辈死党 (阿德勒共情)';
         let isRecording = false;
+
+        const CARTOON_EMOJIS = {
+            cute: '🦊',
+            sweet: '👩',
+            boy: '👦',
+            master: '🦉'
+        };
 
         function openVoiceSelectorModal() { document.getElementById('voice-selector-modal').style.display = 'flex'; }
         function closeVoiceSelectorModal() { document.getElementById('voice-selector-modal').style.display = 'none'; }
 
-        function selectVoiceCard(cardId, name) {
+        function selectVoiceCard(cardId, name, key) {
             document.querySelectorAll('.voice-card').forEach(c => c.classList.remove('active'));
             document.getElementById(`vcard-${cardId}`).classList.add('active');
             selectedVoiceName = name;
+            selectedVoiceKey = key;
+
+            // 实时更新卡通萌宠 Emoji
+            if (CARTOON_EMOJIS[key]) {
+                document.getElementById('cartoon-avatar-emoji').innerText = CARTOON_EMOJIS[key];
+            }
         }
 
         function selectAttitude(attId, name) {
@@ -982,18 +1009,19 @@
 
         function startGeminiLiveVoiceSession() {
             closeVoiceSelectorModal();
-            document.getElementById('active-voice-name').innerText = `Gemini Live · ${selectedVoiceName.split(' ')[0]}`;
+            document.getElementById('active-voice-name').innerText = selectedVoiceName.split(' ')[0];
+            document.getElementById('active-voice-subtitle').innerText = `姿态：${selectedAttitudeName.split(' ')[0]}`;
             
             // 追加消息至聊天框
             const chatBox = document.getElementById('chat-box');
             const aiBubble = document.createElement('div');
             aiBubble.className = 'msg-bubble msg-ai';
-            aiBubble.innerText = `🎙️ [Gemini Live 音色已锁定为：${selectedVoiceName} | 姿态：${selectedAttitudeName}] 小同学你好！我是你的专属 AI 伴学助手。随时对我说话吧！`;
+            aiBubble.innerText = `🦊 [卡通伴读助手【智小伴】音色已锁定为：${selectedVoiceName} | 姿态：${selectedAttitudeName}] 嗷呜！我是你的千问 CosyVoice 卡通伴读萌宠小狐狸！随时对我说话吧！`;
             chatBox.appendChild(aiBubble);
             chatBox.scrollTop = chatBox.scrollHeight;
 
             // 朗读欢迎语
-            speakText(`小同学你好！我是你的 ${selectedVoiceName} 伴学助手。随时对我说话吧！`);
+            speakText(`嗷呜！我是你的 ${selectedVoiceName.split(' ')[0]} 伴学萌宠！随时对我说话吧！`);
         }
 
         function toggleVoiceMic() {
@@ -1003,7 +1031,6 @@
                 btn.style.background = '#ef4444';
                 btn.innerText = '⏹️';
                 
-                // 模拟捕获学生语音输入并交互
                 setTimeout(async () => {
                     const sampleText = "老师，异分母通分总是做错怎么办？";
                     document.getElementById('chat-input-field').value = sampleText;
@@ -1014,6 +1041,7 @@
                         body: JSON.stringify({
                             student_id: "STU-2026",
                             voice_input_text: sampleText,
+                            selected_voice_key: selectedVoiceKey,
                             audio_wpm: 110.0,
                             audio_pause_s: 2.2
                         })
@@ -1029,7 +1057,7 @@
 
                     const aiB = document.createElement('div');
                     aiB.className = 'msg-bubble msg-ai';
-                    aiB.innerText = `🎙️ [${selectedVoiceName}] ${data.ai_voice_response_text}`;
+                    aiB.innerText = `${data.qwen_voice_model.avatar_emoji} [${data.qwen_voice_model.voice_name}] ${data.ai_voice_response_text}`;
                     chatBox.appendChild(aiB);
                     chatBox.scrollTop = chatBox.scrollHeight;
 
@@ -1038,7 +1066,7 @@
                 }, 2000);
 
             } else {
-                btn.style.background = 'linear-gradient(135deg, #6366f1, #ec4899)';
+                btn.style.background = 'linear-gradient(135deg, #10b981, #6366f1)';
                 btn.innerText = '🎤';
             }
         }
@@ -1048,8 +1076,8 @@
                 window.speechSynthesis.cancel();
                 const synth = new SpeechSynthesisUtterance(text);
                 synth.lang = 'zh-CN';
-                synth.rate = 1.0;
-                synth.pitch = selectedVoiceName.includes('姐姐') ? 1.2 : 0.9;
+                synth.rate = selectedVoiceKey === 'cute' ? 1.15 : 1.0;
+                synth.pitch = selectedVoiceKey === 'cute' ? 1.4 : (selectedVoiceKey === 'sweet' ? 1.2 : 0.9);
                 window.speechSynthesis.speak(synth);
             }
         }

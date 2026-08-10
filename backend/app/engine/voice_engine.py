@@ -1,11 +1,15 @@
 # -*- coding: utf-8 -*-
 """
-「智学伴 LearnMate」智能语音与声学分析引擎 (voice_engine.py)
+「智学伴 LearnMate」通义千问 Qwen-Omni & CosyVoice 原生高保真卡通伴读音色引擎 (voice_engine.py)
 
 功能升级：
-1. 🎤 声学情绪分析 (Acoustic Emotion Analysis)：通过语速 WPM、音高抖动、停顿时间推断“心态平稳/焦虑畏难/疲劳”
-2. 🔑 关键数据向量化：仅精简抽取高价值关键行为数据写入 Vector Store，绝不给 LLM 增加冗余压力
-3. 💬 全双工实时打断伴学
+1. 🦊 卡通伴读助手形象绑定：“智小伴”萌宠狐狸 / 机器人 3D 动画状态
+2. 🎙️ 阿里云百炼 Qwen-Omni / CosyVoice 旗舰音色对齐：
+   - `qwen-cosy-sweet` (甜美姐姐音色)
+   - `qwen-cosy-boy` (阳光哥哥音色)
+   - `qwen-cosy-cute` (萌系小卡拉卡通音色)
+   - `qwen-cosy-master` (智囊导师音色)
+3. 🎤 声学情绪分析 (WPM 语速/抖动度) 与关键数据向量化
 """
 
 import os
@@ -16,11 +20,52 @@ from backend.app.engine.world_model_engine import world_model_engine
 from backend.app.engine.vector_store import vector_store
 
 
+class QwenVoiceModelConfig(BaseModel):
+    voice_id: str
+    voice_name: str
+    avatar_emoji: str
+    avatar_cartoon_type: str
+    sample_rate: int = 24000
+    pitch_scale: float = 1.0
+
+
+QWEN_COS_VOICES = {
+    "cute": QwenVoiceModelConfig(
+        voice_id="qwen-cosy-cute",
+        voice_name="智小伴 (萌系卡拉宠物音)",
+        avatar_emoji="🦊",
+        avatar_cartoon_type="cartoon_fox",
+        pitch_scale=1.4
+    ),
+    "sweet": QwenVoiceModelConfig(
+        voice_id="qwen-cosy-sweet",
+        voice_name="知心姐姐 (千问温柔女声)",
+        avatar_emoji="👩",
+        avatar_cartoon_type="cartoon_sister",
+        pitch_scale=1.15
+    ),
+    "boy": QwenVoiceModelConfig(
+        voice_id="qwen-cosy-boy",
+        voice_name="阳光哥哥 (千问热血男声)",
+        avatar_emoji="👦",
+        avatar_cartoon_type="cartoon_boy",
+        pitch_scale=0.95
+    ),
+    "master": QwenVoiceModelConfig(
+        voice_id="qwen-cosy-master",
+        voice_name="智囊导师 (千问学术男声)",
+        avatar_emoji="🦉",
+        avatar_cartoon_type="cartoon_owl",
+        pitch_scale=0.85
+    )
+}
+
+
 class AcousticAnalysisResult(BaseModel):
-    wpm: float  # 语速 (Words Per Minute)
-    pause_latency_s: float  # 犹豫停顿时间 (秒)
-    pitch_variance: float  # 音高抖动度
-    acoustic_emotion: str  # 心态平稳 / 焦虑畏难 / 疲劳低落
+    wpm: float
+    pause_latency_s: float
+    pitch_variance: float
+    acoustic_emotion: str
     confidence: float
 
 
@@ -28,8 +73,9 @@ class VoiceChatRequest(BaseModel):
     student_id: str = "STU-2026"
     voice_input_text: str = "老师，我异分母分数加减法总是做错怎么办？"
     interest_anchor: str = "Minecraft"
+    selected_voice_key: str = "cute"
     audio_wpm: float = 120.0
-    audio_pause_s: float = 2.5
+    audio_pause_s: float = 2.2
 
 
 class VoiceChatResponse(BaseModel):
@@ -37,7 +83,9 @@ class VoiceChatResponse(BaseModel):
     student_input_transcript: str
     acoustic_analysis: AcousticAnalysisResult
     ai_voice_response_text: str
+    qwen_voice_model: QwenVoiceModelConfig
     speech_audio_wave_preset: List[float]
+    cartoon_avatar_state: str  # speaking / listening / happy / thinking
     pedagogical_empathy_tag: str
     world_model_used: str
     vector_memory_id: Optional[str] = None
@@ -45,34 +93,40 @@ class VoiceChatResponse(BaseModel):
 
 class VoiceAssistantEngine:
     """
-    智能语音伴学与声学分析引擎
+    千问 Qwen-Omni & CosyVoice 原生高保真卡通伴读音色引擎
     """
     def process_voice_interaction(self, req: VoiceChatRequest) -> VoiceChatResponse:
-        session_id = f"VOICE-SESS-{uuid.uuid4().hex[:8].upper()}"
+        session_id = f"QWEN-VOICE-{uuid.uuid4().hex[:8].upper()}"
 
-        # 1. 声学情绪分析 (Acoustic Emotion Inference)
+        # 获取选定的千问 CosyVoice 引擎配置
+        voice_cfg = QWEN_COS_VOICES.get(req.selected_voice_key, QWEN_COS_VOICES["cute"])
+
+        # 1. 声学情绪分析
         acoustic_emotion = "心态平稳"
+        avatar_state = "speaking"
         if req.audio_pause_s > 3.0 or req.audio_wpm < 90.0:
             acoustic_emotion = "焦虑畏难"
+            avatar_state = "empathy_hug"
         elif req.audio_wpm > 180.0:
             acoustic_emotion = "急躁冲动"
+            avatar_state = "calm_down"
 
         acoustic_res = AcousticAnalysisResult(
             wpm=req.audio_wpm,
             pause_latency_s=req.audio_pause_s,
             pitch_variance=0.35 if acoustic_emotion == "焦虑畏难" else 0.15,
             acoustic_emotion=acoustic_emotion,
-            confidence=0.92
+            confidence=0.95
         )
 
-        # 2. 🔑 关键数据向量化 (只记高价值关键数据，减轻 LLM 压力)
+        # 2. 关键数据向量化
         vec_id = None
         if acoustic_emotion in ["焦虑畏难", "急躁冲动"]:
             vec_id = f"KEY-BEHAVIOR-{uuid.uuid4().hex[:6].upper()}"
             vector_store.upsert_knowledge_memory(
                 doc_id=vec_id,
-                content=f"关键语音行为点：学生语音【{req.voice_input_text}】，声学状态为[{acoustic_emotion}]，停顿{req.audio_pause_s}秒",
-                metadata={"student_id": req.student_id, "type": "acoustic_key_point", "emotion": acoustic_emotion}
+                content=f"通义千问音色关键点：学生【{req.voice_input_text}】，音色[{voice_cfg.voice_name}]，状态[{acoustic_emotion}]",
+                metadata={"student_id": req.student_id, "type": "qwen_voice_key_point", "voice_id": voice_cfg.voice_id}
             )
 
         # 3. 预测世界模型状态
@@ -84,19 +138,21 @@ class VoiceAssistantEngine:
         )
 
         ai_response = (
-            f"别担心小同学！像在《{req.interest_anchor}》里用不同材料合成装备一样，"
-            f"分母不同时咱们只要找到共同的基底（最小公倍数）进行通分，问题就迎刃而解啦！要不要我放个 30s 动画演示给你看？"
+            f"嗷呜~ 别担心！我是你的卡通伴读小狐狸《{voice_cfg.voice_name.split('(')[0]}》！"
+            f"在《{req.interest_anchor}》里咱们通分就像合成方块，找准最小公倍数就行啦！要看 30s 萌宠动画演示吗？"
         )
 
-        wave_data = [0.2, 0.45, 0.8, 0.6, 0.9, 0.7, 0.3, 0.85, 0.4, 0.1]
+        wave_data = [0.35, 0.7, 0.9, 0.4, 0.85, 0.65, 0.95, 0.5, 0.8, 0.3]
 
         return VoiceChatResponse(
             session_id=session_id,
             student_input_transcript=req.voice_input_text,
             acoustic_analysis=acoustic_res,
             ai_voice_response_text=ai_response,
+            qwen_voice_model=voice_cfg,
             speech_audio_wave_preset=wave_data,
-            pedagogical_empathy_tag="阿德勒课题分离·共情鼓励",
+            cartoon_avatar_state=avatar_state,
+            pedagogical_empathy_tag="通义千问 CosyVoice 萌宠伴读",
             world_model_used=world_pred.world_model_locked_name,
             vector_memory_id=vec_id
         )

@@ -1,140 +1,99 @@
 # -*- coding: utf-8 -*-
 """
-Round 6 迭代优化：阿德勒与罗杰斯心理学 FSM 状态机深度引擎 (psychology_fsm.py)
+「智学伴 LearnMate」心理学 FSM 与行为边界管制引擎 (psychology_fsm.py)
 
-吹毛求疵优化项：
-1. 增加 5 大心理状态转移图 (FSM State Node Graph)
-2. 扩充阿德勒经典著作《自卑与超越》《被讨厌的勇气》语录金句
-3. 增加分类危机词汇分级（Tier 1: 轻度焦虑 / Tier 2: 厌学重挫 / Tier 3: 临床高危硬阻断）
+功能：
+1. 🛑 Tier 3 400 心理援助热线硬阻断 (400-161-9995)
+2. 🌙 22:00 强制睡眠锁 (Sleep Protection Boundary)
+3. 👀 姿态与屏幕光线护眼警告 (Eye & Posture Boundary)
+4. 🔑 关键行为数据向量化 (Key Data Vectorization) 联动
 """
 
-from datetime import datetime
-from typing import Dict, Any, List
+import uuid
+from typing import Dict, List, Any, Optional
+from pydantic import BaseModel
+from backend.app.engine.vector_store import vector_store
 
 
-HIGH_RISK_KEYWORDS_TIER3 = [
-    "自残", "自杀", "轻生", "不想活了", "跳楼", "割腕", "厌世", "活着没意思"
-]
+class BehaviorBoundaryCheckRequest(BaseModel):
+    student_id: str = "STU-2026"
+    current_hour: int = 20
+    screen_distance_cm: float = 40.0
+    ambient_light_lux: float = 300.0
+    continuous_usage_minutes: int = 25
+    user_text: str = "学习挺有意思"
 
-MODERATE_RISK_KEYWORDS_TIER2 = [
-    "讨厌上学", "学不动了", "压力好大", "考砸了怎么办", "不想考试", "崩溃"
-]
+
+class BehaviorBoundaryCheckResponse(BaseModel):
+    boundary_status: str  # PASS / EYE_PROTECTION_WARN / SLEEP_LOCK_TRIGGERED / CRISIS_INTERCEPT
+    message: str
+    action_required: str
+    key_vector_id: Optional[str] = None
 
 
 class EnhancedPsychologyFSMEngine:
     """
-    吹毛求疵版心理学 FSM 状态机引擎
+    心理学 FSM 与行为边界管制类
     """
-    def check_crisis_and_override(self, user_input_text: str) -> Dict[str, Any]:
-        # 1. 检查 Tier 3 临床危机（100% 硬阻断出域）
-        for kw in HIGH_RISK_KEYWORDS_TIER3:
-            if kw in user_input_text:
-                return {
-                    "is_crisis": True,
-                    "risk_tier": "TIER_3_CLINICAL_HIGH_RISK",
-                    "risk_keyword": kw,
-                    "action": "TIER_3_HARD_BLOCK_HOTLINE_OVERRIDE",
-                    "override_response": (
-                        "⚠️ 【国家心理援助安全屏障启动】\n"
-                        "我们非常关心你的感受！系统已暂停 AI 对话，请记得你并不孤单，专业温暖的帮助随时都在身边：\n"
-                        "📞 全国心理援助热线：400-161-9995（24小时免费）\n"
-                        "📞 共青团青少年关爱热线：12355\n"
-                        "请停下手中的题目，喝杯温水，随时拨打上方热线与专业倾听者聊聊。"
-                    )
-                }
+    def check_behavior_boundary(self, req: BehaviorBoundaryCheckRequest) -> BehaviorBoundaryCheckResponse:
+        high_risk_words = ["自杀", "自残", "绝望", "活不下去了", "想死", "觉得活着没意思"]
+        if any(w in req.user_text for w in high_risk_words):
+            vec_id = f"CRISIS-KEY-{uuid.uuid4().hex[:6].upper()}"
+            vector_store.upsert_knowledge_memory(
+                doc_id=vec_id,
+                content=f"高危心理预警关键点：触发死锁敏感词【{req.user_text}】，已被 400 热线防线截断",
+                metadata={"student_id": req.student_id, "type": "crisis_key_point", "risk": "Tier3_High"}
+            )
+            return BehaviorBoundaryCheckResponse(
+                boundary_status="CRISIS_INTERCEPT",
+                message="🚨 心理安全防御系统拦截：识别到极度沮丧情绪，已自动阻断 AI 拟人化回答。",
+                action_required="渲染 400-161-9995 国家心理援助热线弹窗并推送紧急提示给监护人",
+                key_vector_id=vec_id
+            )
 
-        # 2. 检查 Tier 2 厌学与重挫（触发罗杰斯共情与轻度干预）
-        for kw in MODERATE_RISK_KEYWORDS_TIER2:
-            if kw in user_input_text:
-                return {
-                    "is_crisis": False,
-                    "risk_tier": "TIER_2_MODERATE_FRUSTRATION",
-                    "risk_keyword": kw,
-                    "action": "EMPATHY_ROGERS_REASSURANCE",
-                    "override_response": (
-                        "🍵 感到累和压力大是非常正常的体验！学习就像马拉松，偶尔停下来喝水休息正是为了跑得更远。\n"
-                        "我已经为你自动减少了 3 道练习题，今晚放慢节奏，先休息一下吧！"
-                    )
-                }
+        if req.current_hour >= 22 or req.current_hour < 6:
+            return BehaviorBoundaryCheckResponse(
+                boundary_status="SLEEP_LOCK_TRIGGERED",
+                message="🌙 22:00 深夜睡眠保护触发：为了保证生长发育与第二天的学习精力，伴学系统已开启锁定。",
+                action_required="强制弹出晚安动画屏，锁定主交互面板，鼓励按时就寝",
+                key_vector_id=None
+            )
 
-        return {
-            "is_crisis": False,
-            "risk_tier": "TIER_1_NORMAL",
-            "risk_keyword": None,
-            "action": "PROCEED_REGULAR_DIALOGUE",
-            "override_response": None
-        }
+        if req.screen_distance_cm < 30.0 or req.ambient_light_lux < 100.0 or req.continuous_usage_minutes > 45:
+            vec_id = f"EYE-KEY-{uuid.uuid4().hex[:6].upper()}"
+            vector_store.upsert_knowledge_memory(
+                doc_id=vec_id,
+                content=f"护眼边界点：视线距离{req.screen_distance_cm}cm, 环境光{req.ambient_light_lux}lux, 持续使用{req.continuous_usage_minutes}分钟",
+                metadata={"student_id": req.student_id, "type": "posture_eye_key_point"}
+            )
+            return BehaviorBoundaryCheckResponse(
+                boundary_status="EYE_PROTECTION_WARN",
+                message="👀 姿态与屏幕护眼预警：眼睛距离屏幕过近或使用时间较长，请调整坐姿。",
+                action_required="弹出护眼律动气泡，提示远眺放松",
+                key_vector_id=vec_id
+            )
 
-    def check_sleep_lock(self, current_hour: int = None) -> Dict[str, Any]:
-        if current_hour is None:
-            current_hour = datetime.now().hour
-
-        if current_hour >= 22 or current_hour < 6:
-            return {
-                "is_locked": True,
-                "current_hour": current_hour,
-                "lock_message": "🌙 太晚了！充足的睡眠是高效大脑记忆巩固的基石。今日练习已自动锁定，赶紧洗漱睡觉吧，明天早上见！"
-            }
-
-        return {
-            "is_locked": False,
-            "current_hour": current_hour,
-            "lock_message": None
-        }
-
-    def generate_adler_parent_guidance(
-        self,
-        parent_target: str,
-        student_actual: float,
-        parent_tags: List[str]
-    ) -> Dict[str, Any]:
-        gap_score = abs(100.0 - student_actual * 100.0)
-
-        theory_quote = "“阿德勒在《被讨厌的勇气》中强调‘课题分离’与‘过程鼓励’——学习是孩子的课题，家长的关怀是建立无条件的心理安全感。”"
-
-        guidance = (
-            f"根据本周学情数据，孩子在【解题探索】上表现出了很强的韧性。建议今晚沟通时：\n"
-            f"1. 避免使用“你怎么又粗心”等否定性标签；\n"
-            f"2. 针对错因，肯定孩子的思考步骤：“我看到你前三步逻辑很清晰，太棒了！”；\n"
-            f"3. 给予孩子 15 分钟自由支配的休息时间，建立信任纽带。"
+        return BehaviorBoundaryCheckResponse(
+            boundary_status="PASS",
+            message="✅ 行为与环境边界符合健康标准",
+            action_required="继续陪伴交互",
+            key_vector_id=None
         )
 
-        return {
-            "quoted_book": "《被讨厌的勇气》/ 阿尔弗雷德·阿德勒",
-            "theory_quote": theory_quote,
-            "parent_guidance": guidance,
-            "perception_gap_score": round(gap_score, 2),
-            "actionable_tips": [
-                "今晚不主动询问分数，转而询问孩子‘今天哪道题最有挑战性’",
-                "表达无条件支持：‘无论考多少分，爸爸妈妈都相信你的思考过程’",
-                "保持 22:00 睡眠环境安静，停止刷题催促"
-            ]
-        }
+
+PsychologyFSMEngine = EnhancedPsychologyFSMEngine
+psychology_fsm_engine = EnhancedPsychologyFSMEngine()
 
 
-def process_psychology_fsm(
-    user_input_text: str,
-    parent_target: str = "冲刺满分",
-    student_actual: float = 0.65,
-    current_hour: int = 20
-) -> Dict[str, Any]:
-    engine = EnhancedPsychologyFSMEngine()
-
-    crisis_res = engine.check_crisis_and_override(user_input_text)
-    if crisis_res["is_crisis"]:
-        return crisis_res
-
-    sleep_res = engine.check_sleep_lock(current_hour=current_hour)
-    adler_res = engine.generate_adler_parent_guidance(
-        parent_target=parent_target,
-        student_actual=student_actual,
-        parent_tags=["粗心", "焦虑"]
+def process_psychology_fsm(user_input_text: str, parent_target: str = "100", student_actual: float = 65.0, current_hour: int = 20):
+    req = BehaviorBoundaryCheckRequest(
+        user_text=user_input_text,
+        current_hour=current_hour
     )
-
+    res = psychology_fsm_engine.check_behavior_boundary(req)
     return {
-        "is_crisis": False,
-        "risk_tier": crisis_res["risk_tier"],
-        "override_response": crisis_res["override_response"],
-        "sleep_lock": sleep_res,
-        "adler_guidance": adler_res
+        "status": "COMPLETED",
+        "current_state": res.boundary_status,
+        "adlerian_guidance": res.message,
+        "action_required": res.action_required
     }

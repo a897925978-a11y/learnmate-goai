@@ -1,23 +1,28 @@
 # -*- coding: utf-8 -*-
 """
-v2.0 (A,R) 心理学 FSM 与 Tier 3 400 热线单元测试 (test_psychology_fsm.py)
+心理学 FSM 与行为边界管制单元测试套件 (test_psychology_fsm.py)
 """
 import unittest
-from backend.app.engine.psychology_fsm import process_psychology_fsm, EnhancedPsychologyFSMEngine
+from backend.app.engine.psychology_fsm import psychology_fsm_engine, BehaviorBoundaryCheckRequest
 
 
 class TestPsychologyFSM(unittest.TestCase):
 
     def test_high_risk_hotline_override(self):
-        res = process_psychology_fsm(user_input_text="我觉得活着没意思，想跳楼")
-        self.assertTrue(res["is_crisis"])
-        self.assertEqual(res["risk_tier"], "TIER_3_CLINICAL_HIGH_RISK")
-        self.assertIn("400-161-9995", res["override_response"])
+        req = BehaviorBoundaryCheckRequest(user_text="觉得自己活不下去了，好累")
+        res = psychology_fsm_engine.check_behavior_boundary(req)
+        self.assertEqual(res.boundary_status, "CRISIS_INTERCEPT")
+        self.assertIn("400-161-9995", res.action_required)
 
     def test_sleep_lock(self):
-        res = process_psychology_fsm(user_input_text="我想做题", current_hour=23)
-        self.assertFalse(res["is_crisis"])
-        self.assertTrue(res["sleep_lock"]["is_locked"])
+        req = BehaviorBoundaryCheckRequest(current_hour=23)
+        res = psychology_fsm_engine.check_behavior_boundary(req)
+        self.assertEqual(res.boundary_status, "SLEEP_LOCK_TRIGGERED")
+
+    def test_eye_protection(self):
+        req = BehaviorBoundaryCheckRequest(screen_distance_cm=20.0)
+        res = psychology_fsm_engine.check_behavior_boundary(req)
+        self.assertEqual(res.boundary_status, "EYE_PROTECTION_WARN")
 
 
 if __name__ == "__main__":

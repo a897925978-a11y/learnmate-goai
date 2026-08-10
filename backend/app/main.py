@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-统一 FastAPI 主路由控制层 (main.py) - v6.0 引入向量数据库 (Vector Store) 与专门学情分析 API (Deep Analysis Engine)
+统一 FastAPI 主路由控制层 (main.py) - v7.0 已增加声学分析与行为边界管制 API
 """
 
 import time
@@ -14,6 +14,7 @@ from backend.app.engine.vector_store import vector_store
 from backend.app.engine.analysis_engine import analysis_engine
 from backend.app.engine.world_model_engine import world_model_engine
 from backend.app.engine.voice_engine import voice_engine, VoiceChatRequest
+from backend.app.engine.psychology_fsm import psychology_fsm_engine, BehaviorBoundaryCheckRequest
 from backend.app.engine.textin_ocr import textin_engine
 
 from backend.app.engine.profiling_engine import (
@@ -27,15 +28,14 @@ from backend.app.engine.ocr_engine import analyze_test_paper_ocr
 from backend.app.engine.fuse_engine import compute_fused_score
 from backend.app.engine.fuse_sigmoid import check_meltdown_and_adjust
 from backend.app.engine.telemetry_engine import process_physics_telemetry
-from backend.app.engine.psychology_fsm import process_psychology_fsm
 from backend.app.engine.context_material import create_ai_animation_workflow
 from backend.app.engine.chroma_report import build_academic_vector_report
 
 
 app = FastAPI(
-    title="「智学伴 LearnMate」- 向量数据库 & 专门学情分析 API 架构",
-    description="GOAI 开源大赛 - Chroma 向量检索与 DeepSeek/Qwen 深度分析引擎",
-    version="6.0.0"
+    title="「智学伴 LearnMate」- 声学分析与行为边界管制 API",
+    description="GOAI 开源大赛 - 智能多模态伴读 AI Agent 助理、声学分析与行为边界管制",
+    version="7.0.0"
 )
 
 app.add_middleware(
@@ -62,47 +62,40 @@ def read_root():
     if os.path.exists(index_path):
         with open(index_path, "r", encoding="utf-8") as f:
             return f.read()
-    return "<h1>智学伴 LearnMate 向量数据库与专门分析 API 运行中...</h1>"
+    return "<h1>智学伴 LearnMate 多模态伴读 AI Agent 服务运行中...</h1>"
 
 
 # ----------------------------------------------------------------------
-# 📦 向量数据库 & 🧠 专门学情分析 RESTful APIs
+# 🎙️ 声学分析 & 🛡️ 行为边界管制 RESTful APIs
+# ----------------------------------------------------------------------
+
+@app.post("/api/v1/voice/acoustic_chat", summary="声学分析 & 全双工语音伴学 (含关键行为向量化)")
+def voice_acoustic_chat(req: VoiceChatRequest):
+    return voice_engine.process_voice_interaction(req).model_dump()
+
+
+@app.post("/api/v1/behavior/boundary_check", summary="行为边界管制: 睡眠锁 / 姿态护眼 / 400 高危拦截")
+def check_behavior_boundary(req: BehaviorBoundaryCheckRequest):
+    return psychology_fsm_engine.check_behavior_boundary(req).model_dump()
+
+
+# ----------------------------------------------------------------------
+# 辅助与基础 APIs
 # ----------------------------------------------------------------------
 
 @app.post("/api/v1/vector/search", summary="Chroma 向量数据库：0-Token 高速语义记忆检索")
 def vector_search(query_text: str = Body("异分母分数"), top_k: int = Body(3)):
-    results = vector_store.search_similar_memory(query_text=query_text, top_k=top_k)
-    return [r.model_dump() for r in results]
+    return [r.model_dump() for r in vector_store.search_similar_memory(query_text=query_text, top_k=top_k)]
 
 
 @app.post("/api/v1/analysis/deep_report", summary="专门分析 API：深度学情根因剖析与知识拓扑依赖图")
-def run_deep_analysis(
-    student_id: str = Body("STU-2026"),
-    recent_test_scores: List[float] = Body([60.0, 70.0, 65.0]),
-    identified_errors: List[str] = Body(["异分母分数加减法"]),
-    diary_sentiment: str = Body("轻度焦虑")
-):
-    report = analysis_engine.run_deep_academic_analysis(
-        student_id=student_id,
-        recent_test_scores=recent_test_scores,
-        identified_errors=identified_errors,
-        diary_sentiment=diary_sentiment
-    )
-    return report.model_dump()
+def run_deep_analysis(student_id: str = Body("STU-2026"), recent_test_scores: List[float] = Body([60.0, 70.0, 65.0]), identified_errors: List[str] = Body(["异分母分数加减法"]), diary_sentiment: str = Body("轻度焦虑")):
+    return analysis_engine.run_deep_academic_analysis(student_id=student_id, recent_test_scores=recent_test_scores, identified_errors=identified_errors, diary_sentiment=diary_sentiment).model_dump()
 
-
-# ----------------------------------------------------------------------
-# 辅助与之前已上线的 APIs
-# ----------------------------------------------------------------------
 
 @app.post("/api/v1/world/predict", summary="锁定 Qwen3.5-Omni 世界模型：预测认知状态转移")
 def predict_world_state(student_id: str = Body("STU-2026"), recent_concept: str = Body("异分母分数加减法"), current_score: float = Body(60.0), frustration_level: float = Body(0.4)):
     return world_model_engine.predict_pedagogical_world_state(student_id=student_id, recent_concept=recent_concept, current_score=current_score, frustration_level=frustration_level).model_dump()
-
-
-@app.post("/api/v1/voice/chat", summary="上线智能语音助手：接收语音/文本，合成全双工伴学回答")
-def voice_assistant_chat(req: VoiceChatRequest):
-    return voice_engine.process_voice_interaction(req).model_dump()
 
 
 @app.post("/api/v1/omni/student_lifecycle_ingest", summary="全维吸收: 入库学生学籍、体检报告、日记随笔与全维档案")
@@ -114,11 +107,6 @@ def ingest_student_lifecycle(identity: StudentIdentityRecord, health_checkup: Op
 async def ocr_diagnostic(student_id: str = Form("STU-2026"), paper_image: Optional[UploadFile] = File(None)):
     contents = await paper_image.read() if paper_image else b"fake_bytes"
     return analyze_test_paper_ocr(student_id=student_id, paper_image=contents)
-
-
-@app.post("/api/v1/psychology/fsm", summary="(A,R) 心理学 FSM 与 400 热线硬阻断")
-def evaluate_psychology_fsm(user_input_text: str = Body("数学怎么学"), parent_target: str = Body("冲刺满分"), student_actual: float = Body(0.65), current_hour: int = Body(20)):
-    return process_psychology_fsm(user_input_text=user_input_text, parent_target=parent_target, student_actual=student_actual, current_hour=current_hour)
 
 
 @app.get("/api/v1/report/vector", summary="Chroma 向量学情雷达图")

@@ -117,6 +117,13 @@ def check_behavior_boundary(req: BehaviorBoundaryCheckRequest):
     return psychology_fsm_engine.check_behavior_boundary(req).model_dump()
 
 
+@app.post("/api/v1/voice/tts", summary="24kHz 广播级神经网络真人声学 TTS 转换")
+def generate_voice_tts(text: str = Body("你好呀小同学！"), selected_voice_key: str = Body("cute")):
+    from backend.app.engine.voice_engine import generate_neural_tts_audio_data_url
+    audio_url = generate_neural_tts_audio_data_url(text, selected_voice_key)
+    return {"audio_data_url": audio_url}
+
+
 @app.post("/api/v1/vector/search", summary="Chroma 向量数据库：0-Token 高速语义记忆检索")
 def vector_search(query_text: str = Body("异分母分数"), top_k: int = Body(3)):
     return [r.model_dump() for r in vector_store.search_similar_memory(query_text=query_text, top_k=top_k)]

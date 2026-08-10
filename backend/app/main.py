@@ -14,7 +14,7 @@ from backend.app.engine.dispatch_engine import dispatch_engine
 from backend.app.engine.vector_store import vector_store
 from backend.app.engine.analysis_engine import analysis_engine
 from backend.app.engine.world_model_engine import world_model_engine
-from backend.app.engine.voice_engine import voice_engine, VoiceChatRequest
+from backend.app.engine.voice_engine import voice_engine, VoiceChatRequest, ProactiveCheckRequest
 from backend.app.engine.psychology_fsm import psychology_fsm_engine, BehaviorBoundaryCheckRequest
 from backend.app.engine.textin_ocr import textin_engine
 
@@ -105,6 +105,11 @@ def get_parent_teacher_alerts(student_id: str = "STU-2026"):
 @app.post("/api/v1/voice/acoustic_chat", summary="声学分析 & 全双工语音伴学 (含关键行为向量化)")
 def voice_acoustic_chat(req: VoiceChatRequest):
     return voice_engine.process_voice_interaction(req).model_dump()
+
+
+@app.post("/api/v1/voice/proactive_check", summary="通义千问大脑：主动介入决策引擎 (心流卡顿 > 90s 主动关怀)")
+def voice_proactive_check(req: ProactiveCheckRequest):
+    return voice_engine.check_proactive_intervention(req).model_dump()
 
 
 @app.post("/api/v1/behavior/boundary_check", summary="行为边界管制: 睡眠锁 / 姿态护眼 / 400 高危拦截")

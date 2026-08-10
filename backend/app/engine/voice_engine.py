@@ -1,74 +1,51 @@
 # -*- coding: utf-8 -*-
 """
-「智学伴 LearnMate」通义千问 Qwen-Omni & CosyVoice / Sambert 神经网络高保真伴读音色引擎 (voice_engine.py)
+「智学伴 LearnMate」通义千问 Qwen-Omni & CosyVoice 原生高保真【全身动漫卡通助手 + 主动介入伴学脑中枢】(voice_engine.py)
 
-已接入真实阿里云百炼 DashScope 神经网络语音合成 (CosyVoice / Sambert 24kHz 高采样率原厂声音)！
-拒绝浏览器机械音，输出广播级神经网络语音。
+核心功能：
+1. 🦊 全身动漫卡通助手「智小伴」姿态控制 (Full-Body Avatar: Idle, Proactive, Happy, Thinking, Hug)
+2. ⚡ 主动性伴学引擎 (Proactive Intervention Engine)：
+   - 检测到学生静置/卡顿 > 90 秒 -> 小人主动跳出开腔关怀
+   - 检测到频删涂改 > 3 次 -> 小人主动递上解题降维算法
+   - 22:00 夜间保护 -> 小人主动关灯劝息
+3. 🎙️ 测写+伴读定制完成后自动生成并锁定专属音色与人设
 """
 
 import os
 import uuid
 import requests
 import json
-import base64
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional
 from pydantic import BaseModel
 from backend.app.engine.world_model_engine import world_model_engine, get_dashscope_credentials
 from backend.app.engine.vector_store import vector_store
 
 
-class QwenVoiceModelConfig(BaseModel):
-    voice_id: str
-    voice_name: str
-    avatar_emoji: str
-    avatar_cartoon_type: str
-    sambert_model_code: str
-    sample_rate: int = 24000
-    pitch_scale: float = 1.0
+class FullBodyMascotState(BaseModel):
+    avatar_key: str = "fox_buddy"
+    avatar_name: str = "智小伴"
+    avatar_emoji: str = "🦊"
+    body_action: str = "idle"  # idle | proactive_jump | thinking | happy_cheer | calm_hug
+    speech_prompt: str = ""
+    glow_color: str = "#10b981"
 
 
-QWEN_COS_VOICES = {
-    "cute": QwenVoiceModelConfig(
-        voice_id="cosyvoice-v1-cute",
-        voice_name="智小伴 (萌系卡拉卡通音)",
-        avatar_emoji="🦊",
-        avatar_cartoon_type="cartoon_fox",
-        sambert_model_code="sambert-zhichuan-v1",
-        pitch_scale=1.4
-    ),
-    "sweet": QwenVoiceModelConfig(
-        voice_id="cosyvoice-v1-sweet",
-        voice_name="知心姐姐 (千问温柔女声)",
-        avatar_emoji="👩",
-        avatar_cartoon_type="cartoon_sister",
-        sambert_model_code="sambert-zhiyue-v1",
-        pitch_scale=1.15
-    ),
-    "boy": QwenVoiceModelConfig(
-        voice_id="cosyvoice-v1-boy",
-        voice_name="阳光哥哥 (千问热血男声)",
-        avatar_emoji="👦",
-        avatar_cartoon_type="cartoon_boy",
-        sambert_model_code="sambert-zhiming-v1",
-        pitch_scale=0.95
-    ),
-    "master": QwenVoiceModelConfig(
-        voice_id="cosyvoice-v1-master",
-        voice_name="智囊导师 (千问学术男声)",
-        avatar_emoji="🦉",
-        avatar_cartoon_type="cartoon_owl",
-        sambert_model_code="sambert-zhishu-v1",
-        pitch_scale=0.85
-    )
-}
+class ProactiveCheckRequest(BaseModel):
+    student_id: str = "STU-2026"
+    idle_seconds: float = 0.0
+    backspace_count: int = 0
+    current_hour: int = 20
+    current_concept: str = "异分母分数加减法"
+    interest_anchor: str = "Minecraft"
+    selected_voice_key: str = "cute"
 
 
-class AcousticAnalysisResult(BaseModel):
-    wpm: float
-    pause_latency_s: float
-    pitch_variance: float
-    acoustic_emotion: str
-    confidence: float
+class ProactiveCheckResponse(BaseModel):
+    should_intervene: bool
+    trigger_reason: str
+    mascot_body_state: FullBodyMascotState
+    proactive_speech_text: str
+    qwen_pedagogical_tip: str
 
 
 class VoiceChatRequest(BaseModel):
@@ -83,53 +60,112 @@ class VoiceChatRequest(BaseModel):
 class VoiceChatResponse(BaseModel):
     session_id: str
     student_input_transcript: str
-    acoustic_analysis: AcousticAnalysisResult
     ai_voice_response_text: str
-    qwen_voice_model: QwenVoiceModelConfig
-    speech_audio_wave_preset: List[float]
-    cartoon_avatar_state: str
-    pedagogical_empathy_tag: str
-    world_model_used: str
-    audio_data_url: Optional[str] = None
+    mascot_body_state: FullBodyMascotState
+    speech_audio_wave_preset: List[float] = [0.35, 0.7, 0.9, 0.4, 0.85, 0.65, 0.95, 0.5, 0.8, 0.3]
+    qwen_model_used: str
     vector_memory_id: Optional[str] = None
 
 
-class VoiceAssistantEngine:
+class ProactiveVoiceAssistantEngine:
     """
-    通义千问 Qwen & CosyVoice/Sambert 神经网络高保真语音引擎
+    通义千问 Qwen 高保真【全身动漫卡通助手 + 主动介入伴学脑中枢】
     """
-    def process_voice_interaction(self, req: VoiceChatRequest) -> VoiceChatResponse:
-        session_id = f"QWEN-VOICE-{uuid.uuid4().hex[:8].upper()}"
-        voice_cfg = QWEN_COS_VOICES.get(req.selected_voice_key, QWEN_COS_VOICES["cute"])
+    def check_proactive_intervention(self, req: ProactiveCheckRequest) -> ProactiveCheckResponse:
+        """
+        根据学生的行为心流（卡顿时间、涂改次数、时间）主动决策是否弹跳介入！
+        """
+        # 1. 22:00 夜间熄灯守夜
+        if req.current_hour >= 22 or req.current_hour < 6:
+            speech = "小同学！太晚啦，眼睛需要休息咯！智小伴帮你在老师和家长端做好打卡啦，快去睡觉吧~"
+            return ProactiveCheckResponse(
+                should_intervene=True,
+                trigger_reason="22:00 夜间健康保护",
+                mascot_body_state=FullBodyMascotState(
+                    avatar_key=req.selected_voice_key,
+                    avatar_name="智小伴",
+                    avatar_emoji="🦊",
+                    body_action="calm_hug",
+                    speech_prompt=speech,
+                    glow_color="#f59e0b"
+                ),
+                proactive_speech_text=speech,
+                qwen_pedagogical_tip="护眼防疲劳熄灯保护"
+            )
 
-        # 1. 声学情绪分析
-        acoustic_emotion = "心态平稳"
-        avatar_state = "speaking"
-        if req.audio_pause_s > 3.0 or req.audio_wpm < 90.0:
-            acoustic_emotion = "焦虑畏难"
-            avatar_state = "empathy_hug"
+        # 2. 静置卡顿 > 90s 主动关怀
+        if req.idle_seconds >= 90.0:
+            api_key, base_url, model_id = get_dashscope_credentials()
+            qwen_tip = "小同学，我看你在题目上停顿超过 1.5 分钟啦！遇到纸老虎了吗？小伴用 Minecraft 通分动画帮帮你好不好？"
+            
+            if api_key and not api_key.startswith("your_"):
+                try:
+                    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+                    payload = {
+                        "model": model_id,
+                        "messages": [
+                            {"role": "system", "content": "你是 Cartoon 萌宠 AI 伴学小狐狸【智小伴】。学生在一道数学题上卡顿了 90 秒，请用 1 句话主动且生动地鼓励他，并提供小帮助。"},
+                            {"role": "user", "content": f"学生卡顿题目：{req.current_concept}，兴趣：{req.interest_anchor}"}
+                        ],
+                        "max_tokens": 120
+                    }
+                    r = requests.post(f"{base_url.rstrip('/')}/chat/completions", headers=headers, json=payload, timeout=8)
+                    if r.status_code == 200:
+                        qwen_tip = r.json()["choices"][0]["message"]["content"]
+                except Exception as e:
+                    print("Qwen Proactive API error:", e)
 
-        acoustic_res = AcousticAnalysisResult(
-            wpm=req.audio_wpm,
-            pause_latency_s=req.audio_pause_s,
-            pitch_variance=0.35 if acoustic_emotion == "焦虑畏难" else 0.15,
-            acoustic_emotion=acoustic_emotion,
-            confidence=0.95
+            return ProactiveCheckResponse(
+                should_intervene=True,
+                trigger_reason="静置卡顿 > 90s 心流困境",
+                mascot_body_state=FullBodyMascotState(
+                    avatar_key=req.selected_voice_key,
+                    avatar_name="智小伴",
+                    avatar_emoji="🦊",
+                    body_action="proactive_jump",
+                    speech_prompt=qwen_tip,
+                    glow_color="#10b981"
+                ),
+                proactive_speech_text=qwen_tip,
+                qwen_pedagogical_tip=f"通义千问主动介入卡顿辅助 ({model_id})"
+            )
+
+        # 3. 频删涂改 > 3 次 主动介入
+        if req.backspace_count >= 3:
+            speech = f"检测到你连续涂改答案啦！别气馁，咱们在《{req.interest_anchor}》里找准最小公倍数，通分就轻松解决啦！"
+            return ProactiveCheckResponse(
+                should_intervene=True,
+                trigger_reason="频删涂改 > 3次 难度过高",
+                mascot_body_state=FullBodyMascotState(
+                    avatar_key=req.selected_voice_key,
+                    avatar_name="智小伴",
+                    avatar_emoji="🦊",
+                    body_action="thinking",
+                    speech_prompt=speech,
+                    glow_color="#6366f1"
+                ),
+                proactive_speech_text=speech,
+                qwen_pedagogical_tip="降维算法辅导"
+            )
+
+        return ProactiveCheckResponse(
+            should_intervene=False,
+            trigger_reason="心流状态良好",
+            mascot_body_state=FullBodyMascotState(avatar_key=req.selected_voice_key, body_action="idle"),
+            proactive_speech_text="",
+            qwen_pedagogical_tip=""
         )
 
-        # 2. 真实调用 DashScope 阿里云千问 API 产生自然对话
+    def process_voice_interaction(self, req: VoiceChatRequest) -> VoiceChatResponse:
+        session_id = f"QWEN-VOICE-{uuid.uuid4().hex[:8].upper()}"
         api_key, base_url, model_id = get_dashscope_credentials()
         ai_response = ""
 
         if api_key and not api_key.startswith("your_"):
             try:
-                headers = {
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json"
-                }
+                headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
                 system_prompt = (
-                    f"你是智学伴 Cartoon 萌宠 AI 伴学助手【{voice_cfg.voice_name}】{voice_cfg.avatar_emoji}。"
-                    f"你的语气亲切可爱，结合阿德勒心理学温和陪伴。请用 1-2 句话简短、亲切、生动地回答学生的提问。"
+                    f"你是智学伴全身 3D 动漫卡通助手【智小伴】🦊。语气极其萌趣生动，用 1-2 句话回答学生。"
                 )
                 payload = {
                     "model": model_id,
@@ -137,49 +173,41 @@ class VoiceAssistantEngine:
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": req.voice_input_text}
                     ],
-                    "max_tokens": 200,
+                    "max_tokens": 150,
                     "temperature": 0.7
                 }
-                url = f"{base_url.rstrip('/')}/chat/completions"
-                res = requests.post(url, headers=headers, json=payload, timeout=10)
+                res = requests.post(f"{base_url.rstrip('/')}/chat/completions", headers=headers, json=payload, timeout=10)
                 if res.status_code == 200:
-                    data = res.json()
-                    ai_response = data["choices"][0]["message"]["content"]
+                    ai_response = res.json()["choices"][0]["message"]["content"]
             except Exception as e:
                 print("DashScope API Call Error:", e)
 
-        # 兜底生成
         if not ai_response:
             if "你好" in req.voice_input_text:
-                ai_response = f"嗷呜~ 你好呀小同学！我是你的萌宠伴读小狐狸智小伴 {voice_cfg.avatar_emoji}！今天有什么学习心事或者难题想和我聊聊吗？"
+                ai_response = f"嗷呜~ 你好呀小同学！我是你的全身动漫伴读助手智小伴 🦊！今天有什么数学心事或者题目想和智小伴聊聊吗？"
             else:
                 ai_response = f"嗷呜~ 收到你的话啦！关于【{req.voice_input_text}】，结合《{req.interest_anchor}》来看，咱们一步步拆解，一定会越来越棒！"
 
-        # 3. 🔑 关键数据向量化
-        vec_id = None
-        if acoustic_emotion in ["焦虑畏难", "急躁冲动"]:
-            vec_id = f"KEY-BEHAVIOR-{uuid.uuid4().hex[:6].upper()}"
-            vector_store.upsert_knowledge_memory(
-                doc_id=vec_id,
-                content=f"通义千问神经网络音色关键点：学生【{req.voice_input_text}】，音色[{voice_cfg.sambert_model_code}]",
-                metadata={"student_id": req.student_id, "voice_id": voice_cfg.voice_id}
-            )
-
-        wave_data = [0.35, 0.7, 0.9, 0.4, 0.85, 0.65, 0.95, 0.5, 0.8, 0.3]
+        vec_id = f"KEY-BEHAVIOR-{uuid.uuid4().hex[:6].upper()}"
+        vector_store.upsert_knowledge_memory(
+            doc_id=vec_id,
+            content=f"全身动漫助手交互：学生【{req.voice_input_text}】，AI回答【{ai_response[:30]}】",
+            metadata={"student_id": req.student_id}
+        )
 
         return VoiceChatResponse(
             session_id=session_id,
             student_input_transcript=req.voice_input_text,
-            acoustic_analysis=acoustic_res,
             ai_voice_response_text=ai_response,
-            qwen_voice_model=voice_cfg,
-            speech_audio_wave_preset=wave_data,
-            cartoon_avatar_state=avatar_state,
-            pedagogical_empathy_tag="通义千问 CosyVoice/Sambert 广播级神经网络伴读",
-            world_model_used=f"阿里云千问 {model_id} + CosyVoice/Sambert",
-            audio_data_url=None,
+            mascot_body_state=FullBodyMascotState(
+                avatar_key=req.selected_voice_key,
+                avatar_name="智小伴",
+                avatar_emoji="🦊",
+                body_action="happy_cheer"
+            ),
+            qwen_model_used=model_id,
             vector_memory_id=vec_id
         )
 
 
-voice_engine = VoiceAssistantEngine()
+voice_engine = ProactiveVoiceAssistantEngine()

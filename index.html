@@ -249,6 +249,50 @@
             color: #fff;
         }
 
+        /* 🦊 全身动漫卡通助手姿态与主动弹窗 CSS */
+        @keyframes mascot-proactive-jump {
+            0% { transform: translateY(0) scale(1); }
+            20% { transform: translateY(-28px) scale(1.18) rotate(-6deg); }
+            40% { transform: translateY(0) scale(0.95); }
+            60% { transform: translateY(-14px) scale(1.08) rotate(6deg); }
+            80% { transform: translateY(0) scale(1); }
+            100% { transform: translateY(0) scale(1); }
+        }
+
+        .mascot-jumping {
+            animation: mascot-proactive-jump 1.2s ease-in-out infinite !important;
+        }
+
+        .proactive-speech-popup {
+            position: absolute;
+            bottom: 140px;
+            right: 0px;
+            width: 280px;
+            background: rgba(15, 23, 42, 0.96);
+            border: 2px solid #34d399;
+            border-radius: 18px;
+            padding: 0.9rem;
+            box-shadow: 0 16px 40px rgba(16, 185, 129, 0.4);
+            backdrop-filter: blur(20px);
+            z-index: 310;
+            display: none;
+            flex-direction: column;
+            gap: 0.5rem;
+            animation: fadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .proactive-speech-popup::after {
+            content: '';
+            position: absolute;
+            bottom: -10px;
+            right: 40px;
+            border-width: 10px 10px 0;
+            border-style: solid;
+            border-color: #34d399 transparent;
+            display: block;
+            width: 0;
+        }
+
         .card-title-bar {
             display: flex;
             justify-content: space-between;
@@ -786,25 +830,63 @@
         </div>
     </div>
 
-    <!-- 🦊 桌面纯净动漫卡通伴读小助手「智小伴」(Pure Floating Anime Mascot Buddy Character Widget) -->
-    <div id="floating-cartoon-mascot-box" style="position:fixed; bottom:24px; right:24px; z-index:300; display:flex; flex-direction:column; align-items:center; gap:0.5rem;">
-        <!-- 动漫卡通小人物头像主体 -->
-        <div style="position:relative; cursor:pointer;" onclick="toggleVoiceMic()" title="点击与「智小伴」开启全双工语音伴学 (双击切换音色)">
-            <div id="mascot-avatar-display" style="width:76px; height:76px; border-radius:50%; background:linear-gradient(135deg, #10b981 0%, #6366f1 100%); display:flex; align-items:center; justify-content:center; font-size:3.2rem; box-shadow:0 0 30px rgba(16,185,129,0.7); animation:float-bounce 3s infinite ease-in-out; border:3px solid rgba(255,255,255,0.25);">
-                🦊
+    <!-- 🦊 桌面【完整全身 2D/3D 动漫卡通伴读助手「智小伴」】Widget -->
+    <div id="floating-cartoon-mascot-box" style="position:fixed; bottom:24px; right:28px; z-index:300; display:flex; flex-direction:column; align-items:center;">
+        
+        <!-- 💡 通义千问脑中枢主动介入提示气泡 (Proactive Speech Popup) -->
+        <div class="proactive-speech-popup" id="proactive-speech-popup">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div style="font-size:0.8rem; font-weight:800; color:#34d399; display:flex; align-items:center; gap:0.4rem;">
+                    <span>✨ 智小伴主动关怀</span>
+                    <span class="status-badge" style="font-size:0.6rem; padding:0.1rem 0.3rem;" id="proactive-trigger-badge">静置卡顿 > 90s</span>
+                </div>
+                <button onclick="dismissProactivePopup()" style="background:none; border:none; color:#94a3b8; cursor:pointer; font-size:0.9rem;">✕</button>
             </div>
-            <!-- 在线动效呼吸点 -->
-            <div style="position:absolute; bottom:2px; right:2px; width:16px; height:16px; border-radius:50%; background:#34d399; border:3px solid #0f172a; box-shadow:0 0 10px #34d399;" id="cartoon-status-dot"></div>
+            <div style="font-size:0.85rem; color:#f8fafc; line-height:1.4;" id="proactive-speech-text">
+                小同学，你看这题卡顿超过 1.5 分钟啦！遇到纸老虎了吗？小伴放个 30s MC 动画帮帮你好不好？
+            </div>
+            <div style="display:flex; gap:0.5rem; margin-top:0.3rem;">
+                <button class="btn btn-primary" style="flex:1; padding:0.3rem 0.5rem; font-size:0.75rem;" onclick="acceptProactiveHelp()">🙋‍♂️ 好呀，帮帮我</button>
+                <button class="btn btn-secondary" style="flex:1; padding:0.3rem 0.5rem; font-size:0.75rem;" onclick="dismissProactivePopup()">不需要，我再想想</button>
+            </div>
         </div>
 
-        <!-- 极光音频波形画布与换音色隐式按纽 -->
-        <div style="background:rgba(15, 23, 42, 0.92); border:1px solid rgba(16, 185, 129, 0.4); border-radius:9999px; padding:0.35rem 0.85rem; display:flex; align-items:center; gap:0.6rem; box-shadow:0 8px 30px rgba(0,0,0,0.5); backdrop-filter:blur(16px);">
-            <canvas id="auroraWaveCanvas" width="70" height="20" style="border-radius:4px; background:rgba(0,0,0,0.2);"></canvas>
+        <!-- 🦊 完整全身 3D/2D 动漫卡通助手小人主体 (Full Body Head, Ears, Torso, Arms, Feet, Tail) -->
+        <div style="position:relative; cursor:pointer;" onclick="toggleVoiceMic()" id="mascot-full-body-wrapper" title="点击与「智小伴」全身卡通助手说话 (双击切换音色)">
+            <!-- 全身 SVG 动漫小人结构 -->
+            <div id="mascot-avatar-display" style="width:90px; height:120px; position:relative; display:flex; flex-direction:column; align-items:center; filter:drop-shadow(0 12px 25px rgba(16,185,129,0.5)); transition:all 0.3s ease;">
+                <!-- 头部 + 耳朵 -->
+                <div style="width:72px; height:72px; border-radius:50%; background:linear-gradient(135deg, #10b981 0%, #6366f1 100%); display:flex; align-items:center; justify-content:center; font-size:2.8rem; border:3px solid rgba(255,255,255,0.3); z-index:2; position:relative;" id="mascot-head-emoji">
+                    🦊
+                </div>
+                <!-- 躯干 + 小衣服 + 招手双臂 -->
+                <div style="width:46px; height:38px; background:linear-gradient(135deg, #6366f1, #3b82f6); border-radius:14px 14px 8px 8px; margin-top:-10px; z-index:1; display:flex; justify-content:space-between; padding:4px 6px; box-shadow:inset 0 2px 5px rgba(255,255,255,0.3);">
+                    <!-- 左手臂 -->
+                    <div style="width:8px; height:22px; background:#10b981; border-radius:6px; transform:rotate(-25deg); transform-origin:top center;" id="mascot-left-arm"></div>
+                    <!-- 动态核心胸标 -->
+                    <div style="font-size:0.7rem; color:#fff; font-weight:900;">✨</div>
+                    <!-- 右手臂 (招手姿态) -->
+                    <div style="width:8px; height:22px; background:#10b981; border-radius:6px; transform:rotate(45deg); transform-origin:top center;" id="mascot-right-arm"></div>
+                </div>
+                <!-- 脚丫 -->
+                <div style="display:flex; gap:12px; margin-top:-3px; z-index:0;">
+                    <div style="width:14px; height:10px; background:#0f172a; border-radius:6px; border:1px solid #10b981;"></div>
+                    <div style="width:14px; height:10px; background:#0f172a; border-radius:6px; border:1px solid #10b981;"></div>
+                </div>
+            </div>
+
+            <!-- 在线动效呼吸点 -->
+            <div style="position:absolute; bottom:12px; right:6px; width:16px; height:16px; border-radius:50%; background:#34d399; border:3px solid #0f172a; box-shadow:0 0 12px #34d399;" id="cartoon-status-dot"></div>
+        </div>
+
+        <!-- 极光音频波形画布与换音色按纽 -->
+        <div style="background:rgba(15, 23, 42, 0.94); border:1.5px solid rgba(16, 185, 129, 0.5); border-radius:9999px; padding:0.35rem 0.85rem; display:flex; align-items:center; gap:0.6rem; box-shadow:0 8px 30px rgba(0,0,0,0.6); backdrop-filter:blur(16px); margin-top:0.3rem;">
+            <canvas id="auroraWaveCanvas" width="70" height="20" style="border-radius:4px; background:rgba(0,0,0,0.25);"></canvas>
             
-            <button id="mic-toggle-btn" onclick="toggleVoiceMic()" style="background:none; border:none; color:#34d399; cursor:pointer; font-size:1.1rem; font-weight:800;" title="切换麦克风">
+            <button id="mic-toggle-btn" onclick="toggleVoiceMic()" style="background:none; border:none; color:#34d399; cursor:pointer; font-size:1.1rem; font-weight:800;" title="点击与「智小伴」说话">
                 🎤
             </button>
-            <button onclick="openVoiceSelectorModal()" style="background:none; border:none; color:#a5b4fc; cursor:pointer; font-size:0.85rem;" title="切换卡通音色">
+            <button onclick="openVoiceSelectorModal()" style="background:none; border:none; color:#a5b4fc; cursor:pointer; font-size:0.85rem;" title="切换伴学姿态与音色">
                 ⚙️
             </button>
         </div>
@@ -1009,9 +1091,9 @@
             selectedVoiceName = name;
             selectedVoiceKey = key;
 
-            // 实时更新卡通萌宠 Emoji
+            // 实时更新全身动漫小人头标
             if (CARTOON_EMOJIS[key]) {
-                document.getElementById('cartoon-avatar-emoji').innerText = CARTOON_EMOJIS[key];
+                document.getElementById('mascot-head-emoji').innerText = CARTOON_EMOJIS[key];
             }
         }
 
@@ -1023,19 +1105,88 @@
 
         function startGeminiLiveVoiceSession() {
             closeVoiceSelectorModal();
-            document.getElementById('active-voice-name').innerText = selectedVoiceName.split(' ')[0];
-            document.getElementById('active-voice-subtitle').innerText = `姿态：${selectedAttitudeName.split(' ')[0]}`;
             
-            // 追加消息至聊天框
             const chatBox = document.getElementById('chat-box');
             const aiBubble = document.createElement('div');
             aiBubble.className = 'msg-bubble msg-ai';
-            aiBubble.innerText = `🦊 [卡通伴读助手【智小伴】音色已锁定为：${selectedVoiceName} | 姿态：${selectedAttitudeName}] 嗷呜！我是你的千问 CosyVoice 卡通伴读萌宠小狐狸！随时对我说话吧！`;
+            aiBubble.innerText = `🦊 [全身动漫伴读助手【智小伴】已锁定：${selectedVoiceName} | 姿态：${selectedAttitudeName}] 嗷呜！音色系统已 100% 自动构建完成！主帅，智小伴时刻主动守护您！`;
             chatBox.appendChild(aiBubble);
             chatBox.scrollTop = chatBox.scrollHeight;
 
-            // 朗读欢迎语
-            speakText(`嗷呜！我是你的 ${selectedVoiceName.split(' ')[0]} 伴学萌宠！随时对我说话吧！`);
+            // 动画招手弹跳
+            setMascotPosture('proactive_jump');
+            speakText(`嗷呜！音色系统已构建完成！智小伴时刻守护您！`);
+        }
+
+        /* 💡 通义千问脑中枢主动介入机制 (Proactive Intervention Controller) */
+        let idleTimeSeconds = 0;
+        setInterval(() => {
+            idleTimeSeconds += 5;
+            if (idleTimeSeconds >= 90) {
+                checkProactiveIntervention();
+            }
+        }, 5000);
+
+        async function checkProactiveIntervention() {
+            try {
+                const res = await fetch(`${API_BASE}/api/v1/voice/proactive_check`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        student_id: "STU-2026",
+                        idle_seconds: idleTimeSeconds,
+                        backspace_count: 0,
+                        current_hour: new Date().getHours(),
+                        selected_voice_key: selectedVoiceKey
+                    })
+                });
+                const data = await res.json();
+
+                if (data.should_intervene) {
+                    showProactivePopup(data.trigger_reason, data.proactive_speech_text);
+                    setMascotPosture(data.mascot_body_state.body_action);
+                    speakText(data.proactive_speech_text);
+                }
+            } catch (e) {
+                console.error("Proactive Check Error:", e);
+            }
+        }
+
+        function showProactivePopup(badgeText, speechText) {
+            document.getElementById('proactive-trigger-badge').innerText = badgeText;
+            document.getElementById('proactive-speech-text').innerText = speechText;
+            document.getElementById('proactive-speech-popup').style.display = 'flex';
+        }
+
+        function dismissProactivePopup() {
+            document.getElementById('proactive-speech-popup').style.display = 'none';
+            idleTimeSeconds = 0; // 重置计时
+            setMascotPosture('idle');
+        }
+
+        function acceptProactiveHelp() {
+            dismissProactivePopup();
+            document.getElementById('chat-input-field').value = "请帮我讲解异分母通分思路！";
+            sendChatMessage();
+        }
+
+        function setMascotPosture(action) {
+            const avatarDisplay = document.getElementById('mascot-avatar-display');
+            if (!avatarDisplay) return;
+
+            avatarDisplay.classList.remove('mascot-jumping');
+
+            if (action === 'proactive_jump') {
+                avatarDisplay.classList.add('mascot-jumping');
+            } else if (action === 'thinking') {
+                document.getElementById('mascot-right-arm').style.transform = 'rotate(-75deg) translateY(-8px)';
+            } else if (action === 'happy_cheer') {
+                document.getElementById('mascot-left-arm').style.transform = 'rotate(-135deg)';
+                document.getElementById('mascot-right-arm').style.transform = 'rotate(135deg)';
+            } else {
+                document.getElementById('mascot-left-arm').style.transform = 'rotate(-25deg)';
+                document.getElementById('mascot-right-arm').style.transform = 'rotate(45deg)';
+            }
         }
 
         function toggleVoiceMic() {

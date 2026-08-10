@@ -831,7 +831,7 @@
     </div>
 
     <!-- 🦊 桌面【完整全身 2D/3D 动漫卡通伴读助手「智小伴」】Widget -->
-    <div id="floating-cartoon-mascot-box" style="position:fixed; bottom:24px; right:28px; z-index:300; display:flex; flex-direction:column; align-items:center;">
+    <div id="floating-cartoon-mascot-box" style="position:fixed; bottom:16px; right:16px; z-index:999; display:flex; flex-direction:column; align-items:center;">
         
         <!-- 💡 通义千问脑中枢主动介入提示气泡 (Proactive Speech Popup) -->
         <div class="proactive-speech-popup" id="proactive-speech-popup">
@@ -854,39 +854,39 @@
         <!-- 🦊 完整全身 3D/2D 动漫卡通助手小人主体 (Full Body Head, Ears, Torso, Arms, Feet, Tail) -->
         <div style="position:relative; cursor:pointer;" onclick="toggleVoiceMic()" id="mascot-full-body-wrapper" title="点击与「智小伴」全身卡通助手说话 (双击切换音色)">
             <!-- 全身 SVG 动漫小人结构 -->
-            <div id="mascot-avatar-display" style="width:90px; height:120px; position:relative; display:flex; flex-direction:column; align-items:center; filter:drop-shadow(0 12px 25px rgba(16,185,129,0.5)); transition:all 0.3s ease;">
+            <div id="mascot-avatar-display" style="width:78px; height:105px; position:relative; display:flex; flex-direction:column; align-items:center; filter:drop-shadow(0 12px 25px rgba(16,185,129,0.5)); transition:all 0.3s ease;">
                 <!-- 头部 + 耳朵 -->
-                <div style="width:72px; height:72px; border-radius:50%; background:linear-gradient(135deg, #10b981 0%, #6366f1 100%); display:flex; align-items:center; justify-content:center; font-size:2.8rem; border:3px solid rgba(255,255,255,0.3); z-index:2; position:relative;" id="mascot-head-emoji">
+                <div style="width:64px; height:64px; border-radius:50%; background:linear-gradient(135deg, #10b981 0%, #6366f1 100%); display:flex; align-items:center; justify-content:center; font-size:2.5rem; border:3px solid rgba(255,255,255,0.3); z-index:2; position:relative;" id="mascot-head-emoji">
                     🦊
                 </div>
                 <!-- 躯干 + 小衣服 + 招手双臂 -->
-                <div style="width:46px; height:38px; background:linear-gradient(135deg, #6366f1, #3b82f6); border-radius:14px 14px 8px 8px; margin-top:-10px; z-index:1; display:flex; justify-content:space-between; padding:4px 6px; box-shadow:inset 0 2px 5px rgba(255,255,255,0.3);">
+                <div style="width:40px; height:32px; background:linear-gradient(135deg, #6366f1, #3b82f6); border-radius:12px 12px 8px 8px; margin-top:-8px; z-index:1; display:flex; justify-content:space-between; padding:3px 5px; box-shadow:inset 0 2px 5px rgba(255,255,255,0.3);">
                     <!-- 左手臂 -->
-                    <div style="width:8px; height:22px; background:#10b981; border-radius:6px; transform:rotate(-25deg); transform-origin:top center;" id="mascot-left-arm"></div>
+                    <div style="width:7px; height:18px; background:#10b981; border-radius:5px; transform:rotate(-25deg); transform-origin:top center;" id="mascot-left-arm"></div>
                     <!-- 动态核心胸标 -->
-                    <div style="font-size:0.7rem; color:#fff; font-weight:900;">✨</div>
+                    <div style="font-size:0.65rem; color:#fff; font-weight:900;">✨</div>
                     <!-- 右手臂 (招手姿态) -->
-                    <div style="width:8px; height:22px; background:#10b981; border-radius:6px; transform:rotate(45deg); transform-origin:top center;" id="mascot-right-arm"></div>
+                    <div style="width:7px; height:18px; background:#10b981; border-radius:5px; transform:rotate(45deg); transform-origin:top center;" id="mascot-right-arm"></div>
                 </div>
                 <!-- 脚丫 -->
-                <div style="display:flex; gap:12px; margin-top:-3px; z-index:0;">
-                    <div style="width:14px; height:10px; background:#0f172a; border-radius:6px; border:1px solid #10b981;"></div>
-                    <div style="width:14px; height:10px; background:#0f172a; border-radius:6px; border:1px solid #10b981;"></div>
+                <div style="display:flex; gap:10px; margin-top:-3px; z-index:0;">
+                    <div style="width:12px; height:8px; background:#0f172a; border-radius:5px; border:1px solid #10b981;"></div>
+                    <div style="width:12px; height:8px; background:#0f172a; border-radius:5px; border:1px solid #10b981;"></div>
                 </div>
             </div>
 
             <!-- 在线动效呼吸点 -->
-            <div style="position:absolute; bottom:12px; right:6px; width:16px; height:16px; border-radius:50%; background:#34d399; border:3px solid #0f172a; box-shadow:0 0 12px #34d399;" id="cartoon-status-dot"></div>
+            <div style="position:absolute; bottom:10px; right:4px; width:14px; height:14px; border-radius:50%; background:#34d399; border:2.5px solid #0f172a; box-shadow:0 0 10px #34d399;" id="cartoon-status-dot"></div>
         </div>
 
         <!-- 极光音频波形画布与换音色按纽 -->
-        <div style="background:rgba(15, 23, 42, 0.94); border:1.5px solid rgba(16, 185, 129, 0.5); border-radius:9999px; padding:0.35rem 0.85rem; display:flex; align-items:center; gap:0.6rem; box-shadow:0 8px 30px rgba(0,0,0,0.6); backdrop-filter:blur(16px); margin-top:0.3rem;">
-            <canvas id="auroraWaveCanvas" width="70" height="20" style="border-radius:4px; background:rgba(0,0,0,0.25);"></canvas>
+        <div style="background:rgba(15, 23, 42, 0.94); border:1.5px solid rgba(16, 185, 129, 0.5); border-radius:9999px; padding:0.3rem 0.75rem; display:flex; align-items:center; gap:0.5rem; box-shadow:0 8px 30px rgba(0,0,0,0.6); backdrop-filter:blur(16px); margin-top:0.3rem;">
+            <canvas id="auroraWaveCanvas" width="60" height="18" style="border-radius:4px; background:rgba(0,0,0,0.25);"></canvas>
             
-            <button id="mic-toggle-btn" onclick="toggleVoiceMic()" style="background:none; border:none; color:#34d399; cursor:pointer; font-size:1.1rem; font-weight:800;" title="点击对讲">
+            <button id="mic-toggle-btn" onclick="toggleVoiceMic()" style="background:none; border:none; color:#34d399; cursor:pointer; font-size:1rem; font-weight:800;" title="点击对讲">
                 🎤
             </button>
-            <button onclick="startGeminiLiveContinuousCall()" style="background:linear-gradient(135deg, #10b981, #6366f1); border:none; color:#fff; padding:0.25rem 0.65rem; border-radius:9999px; font-size:0.75rem; font-weight:800; cursor:pointer; box-shadow:0 0 12px rgba(16,185,129,0.5);" title="开启全双工实时语音通话 (无需打字按键)">
+            <button id="floating-call-btn" onclick="toggleGeminiLiveCall()" style="background:linear-gradient(135deg, #10b981, #6366f1); border:none; color:#fff; padding:0.25rem 0.65rem; border-radius:9999px; font-size:0.75rem; font-weight:800; cursor:pointer; box-shadow:0 0 12px rgba(16,185,129,0.5);" title="开启/结束全双工实时语音通话">
                 📞 开启实时通话
             </button>
             <button onclick="openVoiceSelectorModal()" style="background:none; border:none; color:#a5b4fc; cursor:pointer; font-size:0.85rem;" title="切换姿态音色">
@@ -1235,9 +1235,24 @@
         let liveCallSeconds = 0;
         let liveCallTimerInterval = null;
 
+        function toggleGeminiLiveCall() {
+            if (!isContinuousCallActive) {
+                startGeminiLiveContinuousCall();
+            } else {
+                stopGeminiLiveContinuousCall();
+            }
+        }
+
         function startGeminiLiveContinuousCall() {
             isContinuousCallActive = true;
             document.getElementById('gemini-live-call-bar').style.display = 'flex';
+
+            const btn = document.getElementById('floating-call-btn');
+            if (btn) {
+                btn.innerText = '🔴 结束通话';
+                btn.style.background = '#ef4444';
+                btn.style.boxShadow = '0 0 15px rgba(239,68,68,0.6)';
+            }
             
             liveCallSeconds = 0;
             if (liveCallTimerInterval) clearInterval(liveCallTimerInterval);
@@ -1261,6 +1276,14 @@
         function stopGeminiLiveContinuousCall() {
             isContinuousCallActive = false;
             document.getElementById('gemini-live-call-bar').style.display = 'none';
+
+            const btn = document.getElementById('floating-call-btn');
+            if (btn) {
+                btn.innerText = '📞 开启实时通话';
+                btn.style.background = 'linear-gradient(135deg, #10b981, #6366f1)';
+                btn.style.boxShadow = '0 0 12px rgba(16,185,129,0.5)';
+            }
+
             if (liveCallTimerInterval) clearInterval(liveCallTimerInterval);
             stopRecordingUI();
             if (window.speechSynthesis) window.speechSynthesis.cancel();

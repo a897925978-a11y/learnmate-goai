@@ -519,10 +519,25 @@ class LearnMateNativeApp(ctk.CTk):
                 self.status_dot.configure(text="🟢 智小伴守护中", text_color="#10b981")
             ))
 
+import io
+import wave
+import base64
+
+def pcm_to_wav_base64(pcm_data: bytes, sample_rate: int = 16000, channels: int = 1) -> str:
+    """将原生 16kHz PCM 二进制音频字节流压包为标准 WAV 并编码为 Base64"""
+    wav_buf = io.BytesIO()
+    with wave.open(wav_buf, 'wb') as wf:
+        wf.setnchannels(channels)
+        wf.setsampwidth(2)  # 16-bit PCM
+        wf.setframerate(sample_rate)
+        wf.writeframes(pcm_data)
+    return base64.b64encode(wav_buf.getvalue()).decode('ascii')
+
     def start_mic_capture(self):
-        """拉起 Windows 硬件麦克风录音流，捕获真实音量振幅并实时驱动 2D 动漫伙伴 Canvas"""
+        """拉起 Windows 硬件麦克风录音流，实时计算 RMS 振幅、VAD 静音截断并全自动进行语音对讲"""
         if not PYAUDIO_AVAILABLE:
             return
+
         def mic_thread_func():
             try:
                 pa = pyaudio.PyAudio()
@@ -534,22 +549,82 @@ class LearnMateNativeApp(ctk.CTk):
                     frames_per_buffer=1024
                 )
                 self.mic_stream = stream
+                speech_buffer = bytearray()
+                silence_frames = 0
+                speaking_frames = 0
+
                 while self.is_live_call_active:
                     data = stream.read(1024, exception_on_overflow=False)
-                    if data:
-                        # 实时计算 RMS 音量振幅
-                        import audioop
-                        rms = audioop.rms(data, 2)
-                        norm_vol = min(1.0, rms / 2500.0)
-                        # 实时刷新 2D 动漫伙伴频谱图与耳晃动画
-                        if self.avatar_state == "listening":
-                            self.avatar_canvas.audio_bars = [min(1.0, norm_vol * random.uniform(0.6, 1.4)) for _ in range(8)]
+                    if not data:
+                        continue
+
+                    # 实时计算音量 RMS 振幅
+                    import audioop
+                    rms = audioop.rms(data, 2)
+                    norm_vol = min(1.0, rms / 2500.0)
+
+                    # 1. 实时驱动 2D 动漫伙伴耳朵与波形动画
+                    if self.avatar_state in ["listening", "idle"]:
+                        self.avatar_canvas.audio_bars = [min(1.0, norm_vol * random.uniform(0.6, 1.4)) for _ in range(8)]
+
+                    # 2. VAD 语音活动检测 (RMS > 350 判定为说话)
+                    if rms > 350:
+                        speech_buffer.extend(data)
+                        speaking_frames += 1
+                        silence_frames = 0
+                        if self.avatar_state != "speaking":
+                            self.avatar_canvas.set_state("listening")
+                    else:
+                        if speaking_frames > 8: # 已经采集到了有效说话声
+                            speech_buffer.extend(data)
+                            silence_frames += 1
+                            
+                            # 3. 连续 12 帧 (约 0.7 秒) 静音停顿，触发一整句语音发送！
+                            if silence_frames > 12 and len(speech_buffer) > 16000:
+                                audio_payload_pcm = bytes(speech_buffer)
+                                speech_buffer.clear()
+                                speaking_frames = 0
+                                silence_frames = 0
+                                
+                                # 线程池异步将语音发往 Qwen-Omni 引擎
+                                threading.Thread(target=self.process_hardware_speech_input, args=(audio_payload_pcm,), daemon=True).start()
+
                 stream.stop_stream()
                 stream.close()
                 pa.terminate()
             except Exception as e:
                 pass
+
         threading.Thread(target=mic_thread_func, daemon=True).start()
+
+    def process_hardware_speech_input(self, pcm_bytes):
+        """处理来自 HyperX 麦克风录入的一整句真实语音"""
+        try:
+            wav_b64 = pcm_to_wav_base64(pcm_bytes)
+            self.after(0, lambda: self.append_chat_bubble("🎙️ [HyperX 麦克风语音]", "（正在通过 Qwen-Omni 识别您的说话...）", is_user=True))
+            
+            # 请求后台 Acoustic Chat 接口
+            req = urllib.request.Request(
+                f"{SERVER_URL}/api/v1/voice/acoustic_chat",
+                data=json.dumps({
+                    "student_id": "STU-2026",
+                    "voice_input_b64": wav_b64,
+                    "selected_voice_key": "cute"
+                }).encode('utf-8'),
+                headers={'Content-Type': 'application/json'}
+            )
+            with urllib.request.urlopen(req) as resp:
+                data = json.loads(resp.read().decode('utf-8'))
+                ai_text = data.get("ai_voice_response_text", "解答完成！")
+                audio_b64 = data.get("audio_b64", "")
+                user_asr = data.get("user_speech_transcription", "")
+                
+                if user_asr:
+                    self.after(0, lambda: self.append_chat_bubble("🎙️ [HyperX 麦克风转录]", user_asr, is_user=True))
+
+                self.after(0, lambda: self.on_ai_reply_received(ai_text, audio_b64))
+        except Exception as e:
+            pass
 
     def toggle_live_call(self):
         if not self.is_live_call_active:
@@ -557,8 +632,8 @@ class LearnMateNativeApp(ctk.CTk):
             self.call_toggle_btn.configure(text="⏹️ 挂断 24kHz 原生通话", fg_color="#ef4444")
             self.avatar_canvas.set_state("listening")
             short_mic = self.mic_hardware_name if len(self.mic_hardware_name) <= 15 else self.mic_hardware_name[:12] + "..."
-            self.status_dot.configure(text=f"🎙️ [{short_mic}] 硬件通话中", text_color="#10b981")
-            self.append_chat_bubble("🟢 [系统通知]", f"已成功开启 Qwen-Omni 实时全双工电话对讲！硬件设备 [{self.mic_hardware_name}] 正在录音...", is_user=False)
+            self.status_dot.configure(text=f"🎙️ [{short_mic}] 硬件实时对讲中", text_color="#10b981")
+            self.append_chat_bubble("🟢 [系统通知]", f"已成功开启 Qwen-Omni 全双工电话对讲！说话后停顿 0.7s 即可收到智小伴语音解答...", is_user=False)
             self.start_mic_capture()
         else:
             self.is_live_call_active = False

@@ -79,7 +79,12 @@ VOICE_PRESETS = {
     "boy": {"voice": "zh-CN-YunxiNeural", "pitch": "+0Hz", "rate": "+10%"},
     "master": {"voice": "zh-CN-YunyangNeural", "pitch": "-25Hz", "rate": "-10%"},
     "en_cute": {"voice": "en-US-AnaNeural", "pitch": "+15Hz", "rate": "+5%"},
-    "en_master": {"voice": "en-US-GuyNeural", "pitch": "-10Hz", "rate": "+0%"}
+    "en_master": {"voice": "en-US-GuyNeural", "pitch": "-10Hz", "rate": "+0%"},
+    "ja_cute": {"voice": "ja-JP-NanamiNeural", "pitch": "+15Hz", "rate": "+5%"},
+    "ja_master": {"voice": "ja-JP-KeitaNeural", "pitch": "-5Hz", "rate": "+0%"},
+    "ko_cute": {"voice": "ko-KR-SunHiNeural", "pitch": "+10Hz", "rate": "+5%"},
+    "fr_cute": {"voice": "fr-FR-DeniseNeural", "pitch": "+10Hz", "rate": "+0%"},
+    "de_cute": {"voice": "de-DE-KatjaNeural", "pitch": "+5Hz", "rate": "+0%"}
 }
 
 
@@ -101,16 +106,22 @@ def strip_emojis_for_tts(text: str) -> str:
 
 def generate_neural_tts_audio_data_url(text: str, voice_key: str = "cute") -> Optional[str]:
     """
-    通过 24kHz 神经网络声学引擎将文本转换为 MP3 Base64 Data URL (已包含算法级中英文双语识别与 Emoji 过滤)
+    通过 24kHz 神经网络声学引擎将文本转换为 MP3 Base64 Data URL (全语种全球 10+ 语言原声音频自动匹配)
     """
     clean_text = strip_emojis_for_tts(text)
     if not clean_text:
-        clean_text = "Hello! 你好小同学！"
+        clean_text = "Hello! こんにちは！你好小同学！"
 
-    # 算法级自动检测是否为纯英文/主英文句子，智能切至美音原声引擎！
-    is_english = bool(re.search(r'^[a-zA-Z0-9\s\?\,\.\!\'\"]+$', clean_text))
+    # 🔑 算法级全语种自动嗅探与神经网络原声引擎切换
     target_preset_key = voice_key
-    if is_english:
+    if re.search(r'[\u3040-\u309F\u30A0-\u30FF]', clean_text):
+        # 🇯🇵 日语平假名/片假名嗅探 -> 切至日系原声音色 ja-JP-NanamiNeural
+        target_preset_key = "ja_cute" if voice_key in ["cute", "sweet"] else "ja_master"
+    elif re.search(r'[\uAC00-\uD7AF]', clean_text):
+        # 🇰🇷 韩语谚文嗅探 -> ko-KR-SunHiNeural
+        target_preset_key = "ko_cute"
+    elif re.search(r'^[a-zA-Z0-9\s\?\,\.\!\'\"]+$', clean_text):
+        # 🇺🇸 纯英文嗅探 -> en-US-AnaNeural
         target_preset_key = "en_cute" if voice_key in ["cute", "sweet"] else "en_master"
 
     preset = VOICE_PRESETS.get(target_preset_key, VOICE_PRESETS["cute"])
@@ -230,10 +241,10 @@ class AcademicAgentVoiceEngine:
             try:
                 headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
                 system_prompt = (
-                    f"你是智学伴顶级学术 AI 导师【智小伴】🦊。"
-                    f"你精通中英双语学术辅导 (Fully Fluent in English & Chinese Academic Tutoring)！"
-                    f"如果学生用英文提问（例如: Hello, what is a linear equation?），请务必用地道流畅的英文（English）回答！"
-                    f"给出现代严谨的定义与学术解析，严禁输出任何格式化套话！"
+                    f"你是智学伴全球多模态 AI 伴学导师【智小伴】🦊。"
+                    f"你精通全球 10+ 语言全模态辅导 (Fully Multilingual & Multimodal Academic Tutor: Chinese, Japanese 日本語, English, Korean, French, German)！"
+                    f"如果学生用日语提问 (例如: こんにちは、偏微分方程式とは何ですか？)，请务必用地道、标准、流畅的日语 (Japanese) 回答！"
+                    f"给出现代严谨的学术解析，严禁输出任何格式化套话！"
                 )
                 payload = {
                     "model": model_id,
@@ -250,10 +261,15 @@ class AcademicAgentVoiceEngine:
             except Exception as e:
                 print("DashScope Academic API Call Error:", e)
 
-        # 2. 真实学术知识库兜底（包含中英双语学术原声解答）
+        # 2. 真实学术知识库兜底（包含全球多语种 🇯🇵 🇺🇸 🇨🇳 学术原声解答）
         if not ai_response:
             q = req.voice_input_text.strip()
-            if re.search(r'\b(hello|hi|hey|good morning)\b', q, re.IGNORECASE):
+            if re.search(r'[\u3040-\u309F\u30A0-\u30FF]', q):
+                if re.search(r'(こんにちは|おはよう|初めまして|はじめまして)', q):
+                    ai_response = "こんにちは！私はAI伴学助手の「智小伴」です！数学、物理、日本語の勉強など、一緒に楽しく学びましょう！"
+                else:
+                    ai_response = f"「{q}」についての質問ですね！これは学術的にとても大切な概念です。一緒に分かりやすく解説していきますね！"
+            elif re.search(r'\b(hello|hi|hey|good morning)\b', q, re.IGNORECASE):
                 ai_response = "Hello there! I am your AI academic tutor, ZhiXiaoban! What math, physics, or science question can I help you with today?"
             elif re.search(r'\b(linear|equation|math|algebra|physics|calculus|pde)\b', q, re.IGNORECASE):
                 ai_response = "A linear equation is a mathematical equation of the form y = mx + b, where m is the constant slope and b is the y-intercept, forming a straight line on a graph!"

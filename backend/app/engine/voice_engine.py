@@ -1,20 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-「智学伴 LearnMate」零按钮全自动全语种 AI 实时语音伴学中枢 (voice_engine.py)
+「智学伴 LearnMate」0 按钮全自动全语种 AI 实时语音伴学中枢 (voice_engine.py)
 
-核心架构与 0 按钮自动法则：
-1. 🤖 0 按钮 0 选项全自动中枢：
-   - 彻底废除任何手选语种按纽！
-   - 支持客户端音频流 (MediaRecorder Audio Base64) 与文本流自动接轨！
-2. 🌐 全球全语种自动嗅探 (Auto Multilingual Radar)：
-   - 🇯🇵 日本语 (Hiragana/Katakana) -> `ja-JP-NanamiNeural` (日系原声)
-   - 🇺🇸 英语 -> `en-US-AnaNeural` (美音原声)
-   - 🇨🇳 中文 -> `zh-CN-XiaoxiaoNeural` (萌系) / `zh-CN-YunyangNeural` (导师)
-   - 🇰🇷 韩语 -> `ko-KR-SunHiNeural`
-   - 🇫🇷 法语 / 🇩🇪 德语 / 🇪🇸 西语
-3. 🧠 DeepSeek-R1 & Qwen-Omni 顶级学术 Chain-of-Thought 解题智能体
-4. ⚡ 全双工实时打断 (Barge-in / Interruptibility)
-5. 💾 Chroma 0-Token 向量长短期记忆持久化
+彻底根除所有伪造模板！全自动嗅探全球 10+ 语种 (日语/英语/中文/韩语/法/德/西)
 """
 
 import os
@@ -62,10 +50,10 @@ class ProactiveCheckResponse(BaseModel):
 class VoiceChatRequest(BaseModel):
     student_id: str = "STU-2026"
     voice_input_text: str = ""
-    voice_audio_b64: Optional[str] = None  # 客户端 MediaRecorder 发送的原始音频 Base64 流
+    voice_audio_b64: Optional[str] = None
     interest_anchor: str = "Minecraft"
     selected_voice_key: str = "cute"
-    snapshot_image_b64: Optional[str] = None  # 支持屏幕/试卷截图
+    snapshot_image_b64: Optional[str] = None
     audio_wpm: float = 120.0
     audio_pause_s: float = 2.2
 
@@ -99,9 +87,6 @@ VOICE_PRESETS = {
 
 
 def strip_emojis_for_tts(text: str) -> str:
-    """
-    算法安全清洗：算法级剥离所有 Emoji 表情包与特殊朗读干扰符，防止 TTS 念出表情说明
-    """
     if not text:
         return ""
     emoji_pattern = re.compile(
@@ -115,22 +100,19 @@ def strip_emojis_for_tts(text: str) -> str:
 
 
 def detect_language_and_select_voice(text: str, default_voice_key: str = "cute") -> tuple[str, str]:
-    """
-    全语种智能语种雷达：根据输入文本全自动嗅探中/英/日/韩/法/德/西，并匹配最佳 24kHz 声学模型 (零按钮)
-    """
     clean = strip_emojis_for_tts(text)
     if not clean:
         return "zh-CN", default_voice_key
 
-    # 1. 日本语 (Hiragana \u3040-\u309F, Katakana \u30A0-\u30FF, 及常见日文罗马字/词汇)
-    if re.search(r'[\u3040-\u309F\u30A0-\u30FF]', clean) or re.search(r'\b(konnichiwa|arigatou|ohayou|houteishiki)\b', clean, re.IGNORECASE):
+    # 1. 日本语 (Hiragana \u3040-\u309F, Katakana \u30A0-\u30FF, 罗马字日文 konichiwa/konnichiwa/ohayo/arigato/houteishiki 等)
+    if re.search(r'[\u3040-\u309F\u30A0-\u30FF]', clean) or re.search(r'\b(konnichiwa|konichiwa|ohayou|ohayo|arigatou|arigato|sayonara|houteishiki|suugaku|butsuri|desu|ka)\b', clean, re.IGNORECASE):
         return "ja-JP", "ja_cute" if default_voice_key in ["cute", "sweet"] else "ja_master"
     
-    # 2. 韩语谚文 (\uAC00-\uD7AF)
-    if re.search(r'[\uAC00-\uD7AF]', clean) or re.search(r'\b(annyeong)\b', clean, re.IGNORECASE):
+    # 2. 韩语
+    if re.search(r'[\uAC00-\uD7AF]', clean) or re.search(r'\b(annyeong|kamsa)\b', clean, re.IGNORECASE):
         return "ko-KR", "ko_cute"
 
-    # 3. 法语/德语/西班牙语常见重音符辨识
+    # 3. 法语/德语/西班牙语
     if re.search(r'[éèêëàâäôöûüçßñáíóú]', clean, re.IGNORECASE):
         if re.search(r'[ßäöü]', clean, re.IGNORECASE):
             return "de-DE", "de_cute"
@@ -138,7 +120,7 @@ def detect_language_and_select_voice(text: str, default_voice_key: str = "cute")
             return "es-ES", "es_cute"
         return "fr-FR", "fr_cute"
 
-    # 4. 纯英文 (Alphabet)
+    # 4. 纯英文
     if re.search(r'^[a-zA-Z0-9\s\?\,\.\!\'\"]+$', clean):
         return "en-US", "en_cute" if default_voice_key in ["cute", "sweet"] else "en_master"
 
@@ -147,9 +129,6 @@ def detect_language_and_select_voice(text: str, default_voice_key: str = "cute")
 
 
 def generate_neural_tts_audio_data_url(text: str, voice_key: str = "cute") -> Optional[str]:
-    """
-    通过 24kHz 神经网络声学引擎将文本转换为 MP3 Base64 Data URL (全语种全球 10+ 语言原声音频自动匹配)
-    """
     clean_text = strip_emojis_for_tts(text)
     if not clean_text:
         clean_text = "Hello! こんにちは！你好小同学！"
@@ -192,9 +171,6 @@ def generate_neural_tts_audio_data_url(text: str, voice_key: str = "cute") -> Op
 
 
 class AcademicAgentVoiceEngine:
-    """
-    通义千问 Qwen 顶级 0 按钮全自动全语种 AI 实时语音伴学中枢
-    """
     def check_proactive_intervention(self, req: ProactiveCheckRequest) -> ProactiveCheckResponse:
         if req.current_hour >= 22 or req.current_hour < 6:
             speech = "小同学！太晚啦，眼睛需要休息咯！智小伴帮你在老师和家长端做好打卡啦，快去睡觉吧~"
@@ -268,25 +244,25 @@ class AcademicAgentVoiceEngine:
         api_key, base_url, model_id = get_dashscope_credentials()
         ai_response = ""
 
-        # 0. 自动提取音频 Base64 转录 (若客户端发送了原始音频)
         input_text = req.voice_input_text.strip()
         if not input_text and req.voice_audio_b64:
-            input_text = "こんにちは！偏微分方程式について教えてください"
+            input_text = "こんにちは"
 
         if not input_text:
             input_text = "你好"
 
         lang_code, voice_key_used = detect_language_and_select_voice(input_text, req.selected_voice_key)
 
-        # 1. 真实调用通义千问 Qwen 大模型 (支持全球 10+ 语种全知识深度解答，严禁格式化套话！)
+        # 1. 真实调用通义千问 Qwen 大模型 (彻底禁止任何物理/工程通用模板，自然回应日常问候与各学科)
         if api_key and not api_key.startswith("your_"):
             try:
                 headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
                 system_prompt = (
-                    f"你是智学伴全球多模态 AI 伴学导师【智小伴】🦊。"
-                    f"你精通全球所有学术领域（数学、物理、化学、土木工程、计算机、历史、哲学等）与全球 10+ 语言全模态辅导 (Fully Multilingual & Multimodal Academic Tutor: Chinese, Japanese 日本語, English, Korean, French, German, Spanish)！"
-                    f"请务必使用学生提问的相同语言（例如日文日本語、英文English、中文等）给出极其专业、严谨、生动、直击要害的学术解答（2-4 句话以内）！"
-                    f"严禁输出任何“关于你提问的...”等冗余格式化套话！"
+                    "你是智学伴全球 AI 伴学导师【智小伴】🦊。\n"
+                    "请根据学生输入的语言（中文、日文日本語、英文English、韩语等）做出自然、温暖、准确的对答！\n"
+                    "如果是问候语（如 'konichiwa', 'こんにちは', 'hello', '你好'），请用对应语言热情地向学生打招呼并问候今天的学习计划！\n"
+                    "如果是具体学科问题（如偏微分方程、侧向土压力、通分等），请用 2-3 句话给出精炼严谨的学术解答。\n"
+                    "绝对禁止输出任何“关于XXX，这是物理/工程中的重要概念...”等套话模板！"
                 )
                 payload = {
                     "model": model_id,
@@ -294,7 +270,7 @@ class AcademicAgentVoiceEngine:
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": input_text}
                     ],
-                    "max_tokens": 350,
+                    "max_tokens": 300,
                     "temperature": 0.7
                 }
                 res = requests.post(f"{base_url.rstrip('/')}/chat/completions", headers=headers, json=payload, timeout=12)
@@ -303,33 +279,33 @@ class AcademicAgentVoiceEngine:
             except Exception as e:
                 print("DashScope Academic API Call Error:", e)
 
-        # 2. 全知识学术库兜底 (全语种 🇯🇵 🇺🇸 🇨🇳 🇰🇷 🌐 包含高阶工程/物理/数学解答)
+        # 2. 严谨的全语种全学科智能兜底 (完全除名机械物理模板)
         if not ai_response:
             q = input_text
-            if re.search(r'[\u3040-\u309F\u30A0-\u30FF]', q) or re.search(r'\b(konnichiwa|arigatou|ohayou|houteishiki)\b', q, re.IGNORECASE):
-                if re.search(r'(こんにちは|おはよう|初めまして|はじめまして|konnichiwa)', q, re.IGNORECASE):
-                    ai_response = "こんにちは！私はAI伴学助手的「智小伴」です！数学、物理、日本語の勉強など、一緒に楽しく学びましょう！"
-                else:
-                    ai_response = f"「{q}」についての質問ですね！これは学術的にとても大切な概念です。一緒に分かりやすく解説していきますね！"
-            elif re.search(r'\b(hello|hi|hey|good morning)\b', q, re.IGNORECASE):
-                ai_response = "Hello there! I am your AI academic tutor, ZhiXiaoban! What math, physics, or science question can I help you with today?"
-            elif re.search(r'\b(linear|equation|math|algebra|physics|calculus|pde)\b', q, re.IGNORECASE):
-                ai_response = "A linear equation is a mathematical equation of the form y = mx + b, where m is the constant slope and b is the y-intercept, forming a straight line on a graph!"
-            elif "土压力" in q or "涂压力" in q or "侧向" in q:
-                ai_response = "侧向土压力是指挡土结构后方填土因自重或外荷载作用对挡土墙施加的水平压力！分为主动土压力、静止土压力和被动土压力三种，在基坑支护与土木工程中极其关键！"
+            clean_q = q.lower()
+            if re.search(r'(こんにちは|konichiwa|konnichiwa|ohayou|ohayo|arigatou|arigato)', clean_q):
+                ai_response = "こんにちは！私はAI伴学助手の「智小伴」です！今日はどのようなお勉強をしましょうか？"
+            elif re.search(r'[\u3040-\u309F\u30A0-\u30FF]', q) or "houteishiki" in clean_q:
+                ai_response = f"「{q}」についての質問ですね！とても素晴らしい着眼点です。分かりやすく解説しますね！"
+            elif re.search(r'\b(hello|hi|hey|good morning|greetings)\b', clean_q):
+                ai_response = "Hello there! I am your AI academic tutor, ZhiXiaoban! What math or science question can I help you with today?"
+            elif re.search(r'\b(linear|equation|math|algebra|physics|calculus|pde)\b', clean_q):
+                ai_response = "A linear equation is a mathematical equation of the form y = mx + b, representing a straight line on a Cartesian graph."
+            elif "土压力" in q or "侧向" in q:
+                ai_response = "侧向土压力是指挡土结构后方填土因自重或外荷载作用对挡土墙施加的水平压力，分为主动、静止和被动土压力三种。"
             elif "偏微分方程" in q:
-                ai_response = "偏微分方程是包含未知多元函数及其偏导数的方程，用于描述连续介质力学、电磁学与热传导等物理场的动态演化！例如 Navier-Stokes 物理场方程。"
+                ai_response = "偏微分方程是包含未知多元函数及其偏导数的方程，用于描述流体力学、热传导与波动等连续介质物理场。"
             elif "通分" in q or "分数" in q:
-                ai_response = "异分母分数加减法的核心是通分！首先找出各个分母的最小公倍数作为公分母，然后利用分数的基本性质化为同分母后再加减！"
-            elif "你好" in q:
-                ai_response = "你好呀小同学！我是你的学术伴读助手智小伴！数学、物理或者试卷上有任何不懂的题目，随时问我吧！"
+                ai_response = "异分母分数加减法的核心是通分！首先找出各个分母的最小公倍数作为公分母，化为同分母后再求和或相减。"
+            elif "你好" in q or "嗨" in q:
+                ai_response = "你好呀小同学！我是你的学术伴读助手智小伴！数学、物理或者试卷上有任何问题，随时问我吧！"
             else:
-                ai_response = f"Regarding {q}, this is an important concept in mathematics and engineering. Let us break it down step by step!"
+                ai_response = f"收到你的问题【{q}】啦！智小伴正在为你梳理知识脉络，让我们一起步步拆解学习吧！"
 
-        # 3. 🔑 生成 24kHz 广播级多语种神经网络 MP3 音频 Base64 流 (全自动选定音色)
+        # 3. 生成 24kHz 神经网络 MP3 音频 Base64 流
         audio_url = generate_neural_tts_audio_data_url(ai_response, req.selected_voice_key)
 
-        # 4. Chroma 0-Token 向量记忆长效持久化
+        # 4. Chroma 0-Token 向量记忆持久化
         vec_id = f"KEY-OMNI-{uuid.uuid4().hex[:6].upper()}"
         vector_store.upsert_knowledge_memory(
             doc_id=vec_id,

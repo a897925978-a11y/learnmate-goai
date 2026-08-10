@@ -41,6 +41,20 @@ try:
 except Exception:
     PYAUDIO_AVAILABLE = False
 
+import io
+import wave
+import base64
+
+def pcm_to_wav_base64(pcm_data: bytes, sample_rate: int = 16000, channels: int = 1) -> str:
+    """将原生 16kHz PCM 二进制音频字节流压包为标准 WAV 并编码为 Base64"""
+    wav_buf = io.BytesIO()
+    with wave.open(wav_buf, 'wb') as wf:
+        wf.setnchannels(channels)
+        wf.setsampwidth(2)  # 16-bit PCM
+        wf.setframerate(sample_rate)
+        wf.writeframes(pcm_data)
+    return base64.b64encode(wav_buf.getvalue()).decode('ascii')
+
 def get_audio_hardware_info():
     """获取系统默认麦克风与喇叭硬件设备信息"""
     mic_name, spk_name = "默认麦克风", "默认扬声器"
@@ -519,20 +533,6 @@ class LearnMateNativeApp(ctk.CTk):
                 self.status_dot.configure(text="🟢 智小伴守护中", text_color="#10b981")
             ))
 
-import io
-import wave
-import base64
-
-def pcm_to_wav_base64(pcm_data: bytes, sample_rate: int = 16000, channels: int = 1) -> str:
-    """将原生 16kHz PCM 二进制音频字节流压包为标准 WAV 并编码为 Base64"""
-    wav_buf = io.BytesIO()
-    with wave.open(wav_buf, 'wb') as wf:
-        wf.setnchannels(channels)
-        wf.setsampwidth(2)  # 16-bit PCM
-        wf.setframerate(sample_rate)
-        wf.writeframes(pcm_data)
-    return base64.b64encode(wav_buf.getvalue()).decode('ascii')
-
     def start_mic_capture(self):
         """拉起 Windows 硬件麦克风录音流，实时计算 RMS 振幅、VAD 静音截断并全自动进行语音对讲"""
         if not PYAUDIO_AVAILABLE:
@@ -563,19 +563,22 @@ def pcm_to_wav_base64(pcm_data: bytes, sample_rate: int = 16000, channels: int =
                     rms = audioop.rms(data, 2)
                     norm_vol = min(1.0, rms / 2500.0)
 
-                    # 1. 实时驱动 2D 动漫伙伴耳朵与波形动画
-                    if self.avatar_state in ["listening", "idle"]:
-                        self.avatar_canvas.audio_bars = [min(1.0, norm_vol * random.uniform(0.6, 1.4)) for _ in range(8)]
+                    # 1. 安全调度至 Tkinter 主线程更新 2D 动漫伙伴波形动画
+                    def _update_avatar_ui(vol):
+                        if self.avatar_canvas.avatar_state in ["listening", "idle"]:
+                            self.avatar_canvas.audio_bars = [min(1.0, vol * random.uniform(0.6, 1.4)) for _ in range(8)]
+                    
+                    self.after(0, _update_avatar_ui, norm_vol)
 
                     # 2. VAD 语音活动检测 (RMS > 350 判定为说话)
                     if rms > 350:
                         speech_buffer.extend(data)
                         speaking_frames += 1
                         silence_frames = 0
-                        if self.avatar_state != "speaking":
-                            self.avatar_canvas.set_state("listening")
+                        if self.avatar_canvas.avatar_state != "speaking":
+                            self.after(0, lambda: self.avatar_canvas.set_state("listening"))
                     else:
-                        if speaking_frames > 8: # 已经采集到了有效说话声
+                        if speaking_frames > 8:  # 已经采集到了有效说话声
                             speech_buffer.extend(data)
                             silence_frames += 1
                             
@@ -627,21 +630,24 @@ def pcm_to_wav_base64(pcm_data: bytes, sample_rate: int = 16000, channels: int =
             pass
 
     def toggle_live_call(self):
-        if not self.is_live_call_active:
-            self.is_live_call_active = True
-            self.call_toggle_btn.configure(text="⏹️ 挂断 24kHz 原生通话", fg_color="#ef4444")
-            self.avatar_canvas.set_state("listening")
-            short_mic = self.mic_hardware_name if len(self.mic_hardware_name) <= 15 else self.mic_hardware_name[:12] + "..."
-            self.status_dot.configure(text=f"🎙️ [{short_mic}] 硬件实时对讲中", text_color="#10b981")
-            self.append_chat_bubble("🟢 [系统通知]", f"已成功开启 Qwen-Omni 全双工电话对讲！说话后停顿 0.7s 即可收到智小伴语音解答...", is_user=False)
-            self.start_mic_capture()
-        else:
-            self.is_live_call_active = False
-            self.call_toggle_btn.configure(text="📞 开启 24kHz 原生语音对讲", fg_color="#10b981")
-            self.avatar_canvas.set_state("idle")
-            short_mic = self.mic_hardware_name if len(self.mic_hardware_name) <= 15 else self.mic_hardware_name[:12] + "..."
-            self.status_dot.configure(text=f"🟢 麦克风: {short_mic} 就绪", text_color="#10b981")
-            self.append_chat_bubble("🔴 [系统通知]", "已结束实时通话。", is_user=False)
+        try:
+            if not self.is_live_call_active:
+                self.is_live_call_active = True
+                self.call_toggle_btn.configure(text="⏹️ 挂断 24kHz 原生通话", fg_color="#ef4444")
+                self.avatar_canvas.set_state("listening")
+                short_mic = self.mic_hardware_name if len(self.mic_hardware_name) <= 15 else self.mic_hardware_name[:12] + "..."
+                self.status_dot.configure(text=f"🎙️ [{short_mic}] 硬件实时对讲中", text_color="#10b981")
+                self.append_chat_bubble("🟢 [系统通知]", f"已成功开启 Qwen-Omni 全双工电话对讲！说话后停顿 0.7s 即可收到智小伴语音解答...", is_user=False)
+                self.start_mic_capture()
+            else:
+                self.is_live_call_active = False
+                self.call_toggle_btn.configure(text="📞 开启 24kHz 原生语音对讲", fg_color="#10b981")
+                self.avatar_canvas.set_state("idle")
+                short_mic = self.mic_hardware_name if len(self.mic_hardware_name) <= 15 else self.mic_hardware_name[:12] + "..."
+                self.status_dot.configure(text=f"🟢 麦克风: {short_mic} 就绪", text_color="#10b981")
+                self.append_chat_bubble("🔴 [系统通知]", "已结束实时通话。", is_user=False)
+        except Exception as e:
+            messagebox.showerror("语音通话异常", f"开启语音通话失败: {e}")
 
     # ----------------------------------------------------------------------
     # 面板 2: 📊 ZPD 发展区与雷达图 (Planner Panel)

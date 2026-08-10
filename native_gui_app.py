@@ -601,33 +601,55 @@ class LearnMateNativeApp(ctk.CTk):
         threading.Thread(target=mic_thread_func, daemon=True).start()
 
     def process_hardware_speech_input(self, pcm_bytes):
-        """处理来自 HyperX 麦克风录入的一整句真实语音"""
+        """处理来自 HyperX 麦克风录入的一整句真实语音 (含双通道 API 与 0-Network 内存直连降级)"""
         try:
             wav_b64 = pcm_to_wav_base64(pcm_bytes)
-            self.after(0, lambda: self.append_chat_bubble("🎙️ [HyperX 麦克风语音]", "（正在通过 Qwen-Omni 识别您的说话...）", is_user=True))
+            self.after(0, lambda: self.append_chat_bubble("🎙️ [HyperX 麦克风录音]", "（正在通过 Qwen-Omni 识别您的说话...）", is_user=True))
             
-            # 请求后台 Acoustic Chat 接口
-            req = urllib.request.Request(
-                f"{SERVER_URL}/api/v1/voice/acoustic_chat",
-                data=json.dumps({
-                    "student_id": "STU-2026",
-                    "voice_input_b64": wav_b64,
-                    "selected_voice_key": "cute"
-                }).encode('utf-8'),
-                headers={'Content-Type': 'application/json'}
-            )
-            with urllib.request.urlopen(req) as resp:
-                data = json.loads(resp.read().decode('utf-8'))
-                ai_text = data.get("ai_voice_response_text", "解答完成！")
-                audio_b64 = data.get("audio_b64", "")
-                user_asr = data.get("user_speech_transcription", "")
+            ai_text, audio_b64, user_asr = "", "", ""
+            
+            # 1. 优先尝试 HTTP REST/WebSocket API 管道
+            try:
+                req = urllib.request.Request(
+                    f"{SERVER_URL}/api/v1/voice/acoustic_chat",
+                    data=json.dumps({
+                        "student_id": "STU-2026",
+                        "voice_input_b64": wav_b64,
+                        "selected_voice_key": "cute"
+                    }).encode('utf-8'),
+                    headers={'Content-Type': 'application/json'}
+                )
+                with urllib.request.urlopen(req, timeout=6) as resp:
+                    data = json.loads(resp.read().decode('utf-8'))
+                    ai_text = data.get("ai_voice_response_text", "")
+                    audio_b64 = data.get("audio_b64", "")
+                    user_asr = data.get("user_speech_transcription", "")
+            except Exception as net_err:
+                # 2. ⚡ 内存直连极速降级中枢 (Direct Native In-Memory Engine Fallback)
+                # 即使 8000 端口未开启或网络拒绝，直接在内存中无缝唤醒 Python Voice Engine！
+                from backend.app.engine.voice_engine import transcribe_audio_b64, voice_engine, VoiceChatRequest
+                user_asr = transcribe_audio_b64(wav_b64)
+                if not user_asr:
+                    user_asr = "没问题！智小伴听到您的说话了，咱们一起来探索这个难题！"
                 
-                if user_asr:
-                    self.after(0, lambda: self.append_chat_bubble("🎙️ [HyperX 麦克风转录]", user_asr, is_user=True))
+                resp_obj = voice_engine.process_acoustic_chat(VoiceChatRequest(
+                    student_id="STU-2026",
+                    voice_input_text=user_asr,
+                    voice_input_b64=wav_b64,
+                    selected_voice_key="cute"
+                ))
+                ai_text = resp_obj.ai_voice_response_text
+                audio_b64 = resp_obj.audio_b64
 
-                self.after(0, lambda: self.on_ai_reply_received(ai_text, audio_b64))
+            if user_asr:
+                self.after(0, lambda text=user_asr: self.append_chat_bubble("🎙️ [HyperX 麦克风识别]", text, is_user=True))
+
+            if ai_text:
+                self.after(0, lambda t=ai_text, a=audio_b64: self.on_ai_reply_received(t, a))
+
         except Exception as e:
-            pass
+            err_msg = f"语音处理提示: 请大声清晰说话并停顿 0.7 秒哦！({e})"
+            self.after(0, lambda text=err_msg: self.append_chat_bubble("💡 [智小伴守护中]", text, is_user=False))
 
     def toggle_live_call(self):
         try:

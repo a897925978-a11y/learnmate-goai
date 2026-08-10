@@ -34,6 +34,31 @@ os.environ["NUMEXPR_NUM_THREADS"] = CPU_CORES
 # 🔑 Pygame 实时语音播放引擎
 import pygame
 
+# 🔑 Windows 原生麦克风 & 扬声器 PyAudio 硬件驱动管理
+try:
+    import pyaudio
+    PYAUDIO_AVAILABLE = True
+except Exception:
+    PYAUDIO_AVAILABLE = False
+
+def get_audio_hardware_info():
+    """获取系统默认麦克风与喇叭硬件设备信息"""
+    mic_name, spk_name = "默认麦克风", "默认扬声器"
+    if PYAUDIO_AVAILABLE:
+        try:
+            pa = pyaudio.PyAudio()
+            try:
+                info_in = pa.get_default_input_device_info()
+                mic_name = info_in.get('name', '系统麦克风')
+            except Exception: pass
+            try:
+                info_out = pa.get_default_output_device_info()
+                spk_name = info_out.get('name', '系统喇叭')
+            except Exception: pass
+            pa.terminate()
+        except Exception: pass
+    return mic_name, spk_name
+
 # 🔑 Windows 控制台 Unicode 安全防护
 if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
     try: sys.stdout.reconfigure(encoding='utf-8', errors='replace')
@@ -239,9 +264,12 @@ class LearnMateNativeApp(ctk.CTk):
         self.geometry("1440x900")
         self.minsize(1024, 720)
 
+        # 🔑 检测并初始化 Windows 原生麦克风与扬声器硬件驱动
+        self.mic_hardware_name, self.spk_hardware_name = get_audio_hardware_info()
+
         # 初始化 Pygame Mixer 音频播放器
         try:
-            pygame.mixer.init()
+            pygame.mixer.init(frequency=24000, size=-16, channels=1, buffer=512)
         except Exception:
             pass
 
@@ -250,6 +278,7 @@ class LearnMateNativeApp(ctk.CTk):
         self.backend_thread.start()
 
         self.is_live_call_active = False
+        self.mic_stream = None
 
         self.setup_ui()
 
@@ -278,11 +307,12 @@ class LearnMateNativeApp(ctk.CTk):
         self.avatar_canvas = AnimeAvatarCanvas(self.sidebar, width=240, height=220, bg="#0f172a")
         self.avatar_canvas.grid(row=1, column=0, padx=20, pady=5)
 
-        # 状态指示
+        # 硬件与音频状态指示
         self.status_frame = ctk.CTkFrame(self.sidebar, fg_color="#1e293b", corner_radius=12)
         self.status_frame.grid(row=2, column=0, padx=20, pady=8, sticky="ew")
-        self.status_dot = ctk.CTkLabel(self.status_frame, text="🟢 智小伴 Qwen-Omni 就绪", font=ctk.CTkFont(size=12, weight="bold"), text_color="#10b981")
-        self.status_dot.pack(padx=10, pady=6)
+        short_mic = self.mic_hardware_name if len(self.mic_hardware_name) <= 15 else self.mic_hardware_name[:12] + "..."
+        self.status_dot = ctk.CTkLabel(self.status_frame, text=f"🟢 麦克风: {short_mic} 就绪", font=ctk.CTkFont(size=11, weight="bold"), text_color="#10b981")
+        self.status_dot.pack(padx=8, pady=6)
 
         # 导航按钮集合
         self.btn_voice = ctk.CTkButton(self.sidebar, text="🎙️ 实时双向对讲", font=ctk.CTkFont(size=14), fg_color="#2563eb", hover_color="#1d4ed8", command=lambda: self.select_tab("voice"))
@@ -489,18 +519,53 @@ class LearnMateNativeApp(ctk.CTk):
                 self.status_dot.configure(text="🟢 智小伴守护中", text_color="#10b981")
             ))
 
+    def start_mic_capture(self):
+        """拉起 Windows 硬件麦克风录音流，捕获真实音量振幅并实时驱动 2D 动漫伙伴 Canvas"""
+        if not PYAUDIO_AVAILABLE:
+            return
+        def mic_thread_func():
+            try:
+                pa = pyaudio.PyAudio()
+                stream = pa.open(
+                    format=pyaudio.paInt16,
+                    channels=1,
+                    rate=16000,
+                    input=True,
+                    frames_per_buffer=1024
+                )
+                self.mic_stream = stream
+                while self.is_live_call_active:
+                    data = stream.read(1024, exception_on_overflow=False)
+                    if data:
+                        # 实时计算 RMS 音量振幅
+                        import audioop
+                        rms = audioop.rms(data, 2)
+                        norm_vol = min(1.0, rms / 2500.0)
+                        # 实时刷新 2D 动漫伙伴频谱图与耳晃动画
+                        if self.avatar_state == "listening":
+                            self.avatar_canvas.audio_bars = [min(1.0, norm_vol * random.uniform(0.6, 1.4)) for _ in range(8)]
+                stream.stop_stream()
+                stream.close()
+                pa.terminate()
+            except Exception as e:
+                pass
+        threading.Thread(target=mic_thread_func, daemon=True).start()
+
     def toggle_live_call(self):
         if not self.is_live_call_active:
             self.is_live_call_active = True
             self.call_toggle_btn.configure(text="⏹️ 挂断 24kHz 原生通话", fg_color="#ef4444")
             self.avatar_canvas.set_state("listening")
-            self.status_dot.configure(text="🎙️ Qwen-Omni 全双工通话中", text_color="#10b981")
-            self.append_chat_bubble("🟢 [系统通知]", "已开启 Qwen-Omni 实时全双工电话对讲模式！请随时对麦克风说话...", is_user=False)
+            short_mic = self.mic_hardware_name if len(self.mic_hardware_name) <= 15 else self.mic_hardware_name[:12] + "..."
+            self.status_dot.configure(text=f"🎙️ [{short_mic}] 硬件通话中", text_color="#10b981")
+            self.append_chat_bubble("🟢 [系统通知]", f"已成功开启 Qwen-Omni 实时全双工电话对讲！硬件设备 [{self.mic_hardware_name}] 正在录音...", is_user=False)
+            self.start_mic_capture()
         else:
             self.is_live_call_active = False
             self.call_toggle_btn.configure(text="📞 开启 24kHz 原生语音对讲", fg_color="#10b981")
             self.avatar_canvas.set_state("idle")
-            self.status_dot.configure(text="🟢 智小伴守护中", text_color="#10b981")
+            short_mic = self.mic_hardware_name if len(self.mic_hardware_name) <= 15 else self.mic_hardware_name[:12] + "..."
+            self.status_dot.configure(text=f"🟢 麦克风: {short_mic} 就绪", text_color="#10b981")
             self.append_chat_bubble("🔴 [系统通知]", "已结束实时通话。", is_user=False)
 
     # ----------------------------------------------------------------------

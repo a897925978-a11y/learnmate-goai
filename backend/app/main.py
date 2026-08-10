@@ -6,6 +6,7 @@
 import time
 import os
 from typing import List, Dict, Any, Optional
+from pydantic import BaseModel
 from fastapi import FastAPI, HTTPException, UploadFile, File, Body, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -122,6 +123,15 @@ def generate_voice_tts(text: str = Body("你好呀小同学！"), selected_voice
     from backend.app.engine.voice_engine import generate_neural_tts_audio_data_url
     audio_url = generate_neural_tts_audio_data_url(text, selected_voice_key)
     return {"audio_data_url": audio_url}
+
+
+class VoiceInterruptRequest(BaseModel):
+    session_id: str = "QWEN-OMNI-SESSION"
+
+
+@app.post("/api/v1/voice/interrupt", summary="全双工实时打断 (Barge-in / Interruptibility) 信号接收")
+def interrupt_voice_session(req: Optional[VoiceInterruptRequest] = None):
+    return {"status": "interrupted", "message": "已成功接收打断信号，停止当前播音。"}
 
 
 @app.post("/api/v1/vector/search", summary="Chroma 向量数据库：0-Token 高速语义记忆检索")

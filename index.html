@@ -1306,11 +1306,13 @@
             rec.interimResults = true;
 
             rec.onstart = () => {
+                interruptAISpeech(); // ⚡ 用户一开口实时打断当前 AI 播音 (Barge-in)
                 const inputField = document.getElementById('chat-input-field');
                 if (inputField) inputField.placeholder = "🎙️ 麦克风已接通，正在聆听您的说话... 请对麦克风提问";
             };
 
             rec.onresult = (event) => {
+                interruptAISpeech(); // ⚡ 持续语音识别中再次确保实时打断！
                 let transcript = '';
                 for (let i = event.resultIndex; i < event.results.length; i++) {
                     transcript += event.results[i][0].transcript;
@@ -1451,13 +1453,35 @@
             }
         }
 
+        /* ⚡ 全双工实时打断 (Barge-in / Interruptibility) 音频句柄中枢 */
+        let currentAudioPlayer = null;
+        let isAISpeaking = false;
+
+        function interruptAISpeech() {
+            if (isAISpeaking && currentAudioPlayer) {
+                try {
+                    currentAudioPlayer.pause();
+                    currentAudioPlayer.currentTime = 0;
+                    console.log("⚡ 收到用户打断信号 (Barge-in)，已停止 AI 播放！");
+                } catch(e) {}
+                isAISpeaking = false;
+                setMascotPosture('thinking');
+                fetch(`${API_BASE}/api/v1/voice/interrupt`, { method: 'POST' }).catch(() => {});
+            }
+        }
+
         async function speakText(text, audioDataUrl = null) {
-            // 1. 先播放选定音色的 Web Audio 专属伴学前奏响铃
+            // 1. 若 AI 正在发声，新话语进来前先停掉旧声音
+            if (currentAudioPlayer) {
+                try { currentAudioPlayer.pause(); } catch(e){}
+            }
+
+            // 2. 先播放选定音色的 Web Audio 专属伴学前奏响铃
             playVoiceAudioChime(selectedVoiceKey);
 
             let urlToPlay = audioDataUrl;
 
-            // 2. 🔑 无论任何途径发声，若未带音频 Data URL，强制向后端请求 24kHz 神经网络真人 Base64 MP3！
+            // 3. 🔑 无论任何途径发声，若未带音频 Data URL，强制向后端请求 24kHz 神经网络真人 Base64 MP3！
             if (!urlToPlay || !urlToPlay.startsWith("data:audio")) {
                 try {
                     const res = await fetch(`${API_BASE}/api/v1/voice/tts`, {
@@ -1477,16 +1501,25 @@
                 }
             }
 
-            // 3. 🔊 极速播放 24kHz 广播级 MP3 原声，彻底封杀机械浏览器发声！
+            // 4. 🔊 极速播放 24kHz 广播级 MP3 原声，彻底封杀机械浏览器发声！
             if (urlToPlay && urlToPlay.startsWith("data:audio")) {
                 try {
                     if (window.speechSynthesis) window.speechSynthesis.cancel();
                     const audio = new Audio(urlToPlay);
+                    currentAudioPlayer = audio;
+                    isAISpeaking = true;
+
+                    audio.onended = () => {
+                        isAISpeaking = false;
+                    };
+
                     audio.play().catch(err => {
+                        isAISpeaking = false;
                         console.warn("HTML5 Audio AutoPlay blocked:", err);
                     });
                     return;
                 } catch (e) {
+                    isAISpeaking = false;
                     console.error("Audio Player Exception:", e);
                 }
             }

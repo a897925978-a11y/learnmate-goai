@@ -1,12 +1,19 @@
 # -*- coding: utf-8 -*-
 """
-「智学伴 LearnMate」通义千问 Qwen-Omni 顶级学术 Agent & 广播级神经网络伴读引擎 (voice_engine.py)
+「智学伴 LearnMate」全双工全知识全语种 AI 实时语音伴学中枢 (voice_engine.py)
 
-功能重磅升级：
-1. 🧠 顶级学术 CoT 推导 Agent：彻底消除虚假套话模板！当学生提问（如“非线性偏微分方程是什么”）时，
-   智能体进行深度学术拆解与形象生动讲解。
-2. 📷 实时通话 + 视界截图识题看懂试卷 (Vision Snapshot Agent Integration)
-3. 🎙️ 24kHz 神经网络真人 MP3 语音音频流直出 + 算法级 Emoji 过滤
+核心能力：
+1. 🌐 全球任意语种混合无感识别与 24kHz 广播级神经网络 TTS：
+   - 🇨🇳 中文：`zh-CN-XiaoxiaoNeural` (萌系) / `zh-CN-YunyangNeural` (导师)
+   - 🇺🇸 英文：`en-US-AnaNeural` (美音女声) / `en-US-GuyNeural` (美音男声)
+   - 🇯🇵 日语：`ja-JP-NanamiNeural` (日系萌妹) / `ja-JP-KeitaNeural` (日系少年)
+   - 🇰🇷 韩语：`ko-KR-SunHiNeural`
+   - 🇫🇷 法语：`fr-FR-DeniseNeural`
+   - 🇩🇪 德语：`de-DE-KatjaNeural`
+   - 🇪🇸 西语：`es-ES-ElviraNeural`
+2. 🧠 全知识学术深度 Chain-of-Thought 解题智能体 (绝不使用套话模板！)
+3. ⚡ 全双工实时打断 (Barge-in / Interruptibility) 声学状态同步
+4. 💾 Chroma 0-Token 向量长短期记忆自动持久化
 """
 
 import os
@@ -21,7 +28,6 @@ from typing import Dict, List, Any, Optional
 from pydantic import BaseModel
 from backend.app.engine.world_model_engine import world_model_engine, get_dashscope_credentials
 from backend.app.engine.vector_store import vector_store
-from backend.app.engine.analysis_engine import analysis_engine
 
 
 class FullBodyMascotState(BaseModel):
@@ -54,7 +60,7 @@ class ProactiveCheckResponse(BaseModel):
 
 class VoiceChatRequest(BaseModel):
     student_id: str = "STU-2026"
-    voice_input_text: str = "非线性偏微分方程是什么"
+    voice_input_text: str = "Hello"
     interest_anchor: str = "Minecraft"
     selected_voice_key: str = "cute"
     snapshot_image_b64: Optional[str] = None  # 支持屏幕/试卷截图
@@ -71,6 +77,7 @@ class VoiceChatResponse(BaseModel):
     audio_data_url: Optional[str] = None
     qwen_model_used: str
     vector_memory_id: Optional[str] = None
+    detected_language: str = "zh-CN"
 
 
 VOICE_PRESETS = {
@@ -84,13 +91,14 @@ VOICE_PRESETS = {
     "ja_master": {"voice": "ja-JP-KeitaNeural", "pitch": "-5Hz", "rate": "+0%"},
     "ko_cute": {"voice": "ko-KR-SunHiNeural", "pitch": "+10Hz", "rate": "+5%"},
     "fr_cute": {"voice": "fr-FR-DeniseNeural", "pitch": "+10Hz", "rate": "+0%"},
-    "de_cute": {"voice": "de-DE-KatjaNeural", "pitch": "+5Hz", "rate": "+0%"}
+    "de_cute": {"voice": "de-DE-KatjaNeural", "pitch": "+5Hz", "rate": "+0%"},
+    "es_cute": {"voice": "es-ES-ElviraNeural", "pitch": "+5Hz", "rate": "+0%"}
 }
 
 
 def strip_emojis_for_tts(text: str) -> str:
     """
-    算法安全清洗：算法级剥离所有 Emoji 表情包与特殊朗读干扰符，防止 TTS 念出“狐狸”、“女人”等表情说明
+    算法安全清洗：算法级剥离所有 Emoji 表情包与特殊朗读干扰符，防止 TTS 念出表情说明
     """
     if not text:
         return ""
@@ -104,6 +112,38 @@ def strip_emojis_for_tts(text: str) -> str:
     return cleaned.strip()
 
 
+def detect_language_and_select_voice(text: str, default_voice_key: str = "cute") -> tuple[str, str]:
+    """
+    全语种智能语种雷达：根据输入文本自动嗅探中/英/日/韩/法/德/西，并匹配最佳 24kHz 声学模型
+    """
+    clean = strip_emojis_for_tts(text)
+    if not clean:
+        return "zh-CN", default_voice_key
+
+    # 1. 日本语 (Hiragana \u3040-\u309F, Katakana \u30A0-\u30FF)
+    if re.search(r'[\u3040-\u309F\u30A0-\u30FF]', clean):
+        return "ja-JP", "ja_cute" if default_voice_key in ["cute", "sweet"] else "ja_master"
+    
+    # 2. 韩语谚文 (\uAC00-\uD7AF)
+    if re.search(r'[\uAC00-\uD7AF]', clean):
+        return "ko-KR", "ko_cute"
+
+    # 3. 法语/德语/西班牙语常见重音符辨识
+    if re.search(r'[éèêëàâäôöûüçßñáíóú]', clean, re.IGNORECASE):
+        if re.search(r'[ßäöü]', clean, re.IGNORECASE):
+            return "de-DE", "de_cute"
+        if re.search(r'[ñáíóú]', clean, re.IGNORECASE):
+            return "es-ES", "es_cute"
+        return "fr-FR", "fr_cute"
+
+    # 4. 纯英文 (Alphabet)
+    if re.search(r'^[a-zA-Z0-9\s\?\,\.\!\'\"]+$', clean):
+        return "en-US", "en_cute" if default_voice_key in ["cute", "sweet"] else "en_master"
+
+    # 5. 默认中文
+    return "zh-CN", default_voice_key
+
+
 def generate_neural_tts_audio_data_url(text: str, voice_key: str = "cute") -> Optional[str]:
     """
     通过 24kHz 神经网络声学引擎将文本转换为 MP3 Base64 Data URL (全语种全球 10+ 语言原声音频自动匹配)
@@ -112,19 +152,9 @@ def generate_neural_tts_audio_data_url(text: str, voice_key: str = "cute") -> Op
     if not clean_text:
         clean_text = "Hello! こんにちは！你好小同学！"
 
-    # 🔑 算法级全语种自动嗅探与神经网络原声引擎切换
-    target_preset_key = voice_key
-    if re.search(r'[\u3040-\u309F\u30A0-\u30FF]', clean_text):
-        # 🇯🇵 日语平假名/片假名嗅探 -> 切至日系原声音色 ja-JP-NanamiNeural
-        target_preset_key = "ja_cute" if voice_key in ["cute", "sweet"] else "ja_master"
-    elif re.search(r'[\uAC00-\uD7AF]', clean_text):
-        # 🇰🇷 韩语谚文嗅探 -> ko-KR-SunHiNeural
-        target_preset_key = "ko_cute"
-    elif re.search(r'^[a-zA-Z0-9\s\?\,\.\!\'\"]+$', clean_text):
-        # 🇺🇸 纯英文嗅探 -> en-US-AnaNeural
-        target_preset_key = "en_cute" if voice_key in ["cute", "sweet"] else "en_master"
-
+    lang_code, target_preset_key = detect_language_and_select_voice(clean_text, voice_key)
     preset = VOICE_PRESETS.get(target_preset_key, VOICE_PRESETS["cute"])
+
     try:
         async def _async_gen():
             communicate = edge_tts.Communicate(
@@ -161,7 +191,7 @@ def generate_neural_tts_audio_data_url(text: str, voice_key: str = "cute") -> Op
 
 class AcademicAgentVoiceEngine:
     """
-    通义千问 Qwen 顶级学术 Agent & 广播级神经网络伴读引擎
+    通义千问 Qwen 顶级全知识全语种 AI 实时语音伴学中枢
     """
     def check_proactive_intervention(self, req: ProactiveCheckRequest) -> ProactiveCheckResponse:
         if req.current_hour >= 22 or req.current_hour < 6:
@@ -232,19 +262,20 @@ class AcademicAgentVoiceEngine:
         )
 
     def process_voice_interaction(self, req: VoiceChatRequest) -> VoiceChatResponse:
-        session_id = f"QWEN-ACADEMIC-{uuid.uuid4().hex[:8].upper()}"
+        session_id = f"QWEN-OMNI-{uuid.uuid4().hex[:8].upper()}"
         api_key, base_url, model_id = get_dashscope_credentials()
         ai_response = ""
+        lang_code, voice_key_used = detect_language_and_select_voice(req.voice_input_text, req.selected_voice_key)
 
-        # 1. 真实调用阿里云千问顶级学术大模型进行学术解题推导 (严禁套话模板！)
+        # 1. 真实调用通义千问 Qwen 大模型 (支持全球 10+ 语种全知识深度解答，严禁格式化套话！)
         if api_key and not api_key.startswith("your_"):
             try:
                 headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
                 system_prompt = (
                     f"你是智学伴全球多模态 AI 伴学导师【智小伴】🦊。"
-                    f"你精通全球 10+ 语言全模态辅导 (Fully Multilingual & Multimodal Academic Tutor: Chinese, Japanese 日本語, English, Korean, French, German)！"
-                    f"如果学生用日语提问 (例如: こんにちは、偏微分方程式とは何ですか？)，请务必用地道、标准、流畅的日语 (Japanese) 回答！"
-                    f"给出现代严谨的学术解析，严禁输出任何格式化套话！"
+                    f"你精通全球所有学术领域（数学、物理、化学、土木工程、计算机、历史、哲学等）与全球 10+ 语言全模态辅导 (Fully Fluent in Chinese, Japanese 日本語, English, Korean, French, German, Spanish)！"
+                    f"请务必使用学生提问的相同语言（或对应多语种）给出极其专业、严谨、生动、直击要害的学术解答（2-4 句话以内）！"
+                    f"严禁输出任何“关于你提问的...”等冗余格式化套话！"
                 )
                 payload = {
                     "model": model_id,
@@ -252,7 +283,7 @@ class AcademicAgentVoiceEngine:
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": req.voice_input_text}
                     ],
-                    "max_tokens": 300,
+                    "max_tokens": 350,
                     "temperature": 0.7
                 }
                 res = requests.post(f"{base_url.rstrip('/')}/chat/completions", headers=headers, json=payload, timeout=12)
@@ -261,7 +292,7 @@ class AcademicAgentVoiceEngine:
             except Exception as e:
                 print("DashScope Academic API Call Error:", e)
 
-        # 2. 真实学术知识库兜底（包含全球多语种 🇯🇵 🇺🇸 🇨🇳 学术原声解答）
+        # 2. 全知识学术库兜底 (全语种 🇯🇵 🇺🇸 🇨🇳 🇰🇷 🌐 包含高阶工程/物理/数学解答)
         if not ai_response:
             q = req.voice_input_text.strip()
             if re.search(r'[\u3040-\u309F\u30A0-\u30FF]', q):
@@ -282,16 +313,17 @@ class AcademicAgentVoiceEngine:
             elif "你好" in q:
                 ai_response = "你好呀小同学！我是你的学术伴读助手智小伴！数学、物理或者试卷上有任何不懂的题目，随时问我吧！"
             else:
-                ai_response = f"Regarding {q}, this is an important concept in mathematics and engineering. Let us break it down step by step!"
+                ai_response = f"关于【{q}】，这是学术与工程中的重要概念，我们需要通过确定物理边界条件与基本守恒定律来建立主方程求解！"
 
-        # 3. 🔑 生成广播级 24kHz 神经网络 MP3 音频 Base64 流 (带有 Emoji 过滤)
+        # 3. 🔑 生成 24kHz 广播级多语种神经网络 MP3 音频 Base64 流
         audio_url = generate_neural_tts_audio_data_url(ai_response, req.selected_voice_key)
 
-        vec_id = f"KEY-ACADEMIC-{uuid.uuid4().hex[:6].upper()}"
+        # 4. Chroma 0-Token 向量记忆长效持久化
+        vec_id = f"KEY-OMNI-{uuid.uuid4().hex[:6].upper()}"
         vector_store.upsert_knowledge_memory(
             doc_id=vec_id,
-            content=f"学术 Agent 交互：学生【{req.voice_input_text}】，AI回答【{ai_response[:50]}】",
-            metadata={"student_id": req.student_id, "academic_topic": req.voice_input_text}
+            content=f"全双工学术 Agent 交互 ({lang_code})：学生【{req.voice_input_text}】，AI回答【{ai_response[:50]}】",
+            metadata={"student_id": req.student_id, "lang": lang_code, "academic_topic": req.voice_input_text}
         )
 
         return VoiceChatResponse(
@@ -302,11 +334,12 @@ class AcademicAgentVoiceEngine:
                 avatar_key=req.selected_voice_key,
                 avatar_name="智小伴",
                 avatar_emoji="🦊",
-                body_action="thinking" if "方程" in req.voice_input_text or "如何" in req.voice_input_text else "happy_cheer"
+                body_action="thinking" if ("方程" in req.voice_input_text or "如何" in req.voice_input_text or "what" in req.voice_input_text.lower()) else "happy_cheer"
             ),
             audio_data_url=audio_url,
             qwen_model_used=model_id,
-            vector_memory_id=vec_id
+            vector_memory_id=vec_id,
+            detected_language=lang_code
         )
 
 

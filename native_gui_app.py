@@ -477,16 +477,24 @@ class LearnMateNativeApp(ctk.CTk):
                 }).encode('utf-8'),
                 headers={'Content-Type': 'application/json'}
             )
-            with urllib.request.urlopen(req) as resp:
+            with urllib.request.urlopen(req, timeout=6) as resp:
                 data = json.loads(resp.read().decode('utf-8'))
                 ai_text = data.get("ai_voice_response_text", "没问题！智小伴为你解答完成！")
                 audio_b64 = data.get("audio_b64", "")
 
                 # 界面主线程更新气泡
-                self.after(0, lambda: self.on_ai_reply_received(ai_text, audio_b64))
+                self.after(0, lambda t=ai_text, a=audio_b64: self.on_ai_reply_received(t, a))
         except Exception as e:
-            fallback_text = f"没问题！关于“{prompt_text}”，智小伴立刻和你一起探讨！"
-            self.after(0, lambda: self.on_ai_reply_received(fallback_text, ""))
+            # ⚡ 内存直连极速降级 (Direct In-Memory Fallback for text chat as well!)
+            from backend.app.engine.voice_engine import voice_engine, VoiceChatRequest
+            resp_obj = voice_engine.process_voice_interaction(VoiceChatRequest(
+                student_id="STU-2026",
+                voice_input_text=prompt_text,
+                selected_voice_key="cute"
+            ))
+            ai_text = resp_obj.ai_voice_response_text
+            audio_b64 = resp_obj.audio_data_url or ""
+            self.after(0, lambda t=ai_text, a=audio_b64: self.on_ai_reply_received(t, a))
 
     def on_ai_reply_received(self, text, audio_b64):
         self.append_chat_bubble("🦊 [动漫伴读伙伴 · 智小伴]", text, is_user=False)

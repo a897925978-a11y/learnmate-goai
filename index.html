@@ -1119,16 +1119,22 @@
             speakText(`嗷呜！音色系统已构建完成！智小伴时刻守护您！`);
         }
 
-        /* 💡 通义千问脑中枢主动介入机制 (Proactive Intervention Controller) */
+        /* 💡 通义千问脑中枢主动介入机制 (Proactive Intervention Controller - 带 3 分钟呼吸冷却) */
         let idleTimeSeconds = 0;
+        let isProactivePopupOpen = false;
+        let lastProactiveTimestamp = 0;
+
         setInterval(() => {
             idleTimeSeconds += 5;
-            if (idleTimeSeconds >= 90) {
+            const now = Date.now();
+            // 冷却锁：若已弹窗或距离上次主动介入不足 180 秒 (3分钟)，给孩子留足安静思考的“呼吸空白”！
+            if (idleTimeSeconds >= 90 && !isProactivePopupOpen && (now - lastProactiveTimestamp > 180000)) {
                 checkProactiveIntervention();
             }
         }, 5000);
 
         async function checkProactiveIntervention() {
+            if (isProactivePopupOpen) return;
             try {
                 const res = await fetch(`${API_BASE}/api/v1/voice/proactive_check`, {
                     method: 'POST',
@@ -1144,6 +1150,10 @@
                 const data = await res.json();
 
                 if (data.should_intervene) {
+                    isProactivePopupOpen = true;
+                    lastProactiveTimestamp = Date.now();
+                    idleTimeSeconds = 0; // 重置静置计时
+
                     showProactivePopup(data.trigger_reason, data.proactive_speech_text);
                     setMascotPosture(data.mascot_body_state.body_action);
                     speakText(data.proactive_speech_text, data.audio_data_url);
@@ -1161,8 +1171,10 @@
 
         function dismissProactivePopup() {
             document.getElementById('proactive-speech-popup').style.display = 'none';
+            isProactivePopupOpen = false;
             idleTimeSeconds = 0; // 重置计时
             setMascotPosture('idle');
+            if (window.speechSynthesis) window.speechSynthesis.cancel();
         }
 
         function acceptProactiveHelp() {

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-统一 FastAPI 主路由控制层 (main.py) - v7.0 已增加声学分析与行为边界管制 API
+统一 FastAPI 主路由控制层 (main.py) - v8.0 双端 (家长/教师) 现象级推送与非诊断合规拦截
 """
 
 import time
@@ -10,6 +10,7 @@ from fastapi import FastAPI, HTTPException, UploadFile, File, Body, Form, Reques
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 
+from backend.app.engine.dispatch_engine import dispatch_engine
 from backend.app.engine.vector_store import vector_store
 from backend.app.engine.analysis_engine import analysis_engine
 from backend.app.engine.world_model_engine import world_model_engine
@@ -33,9 +34,9 @@ from backend.app.engine.chroma_report import build_academic_vector_report
 
 
 app = FastAPI(
-    title="「智学伴 LearnMate」- 声学分析与行为边界管制 API",
-    description="GOAI 开源大赛 - 智能多模态伴读 AI Agent 助理、声学分析与行为边界管制",
-    version="7.0.0"
+    title="「智学伴 LearnMate」- 双端现象级推送与合规防护 API",
+    description="GOAI 开源大赛 - 严禁心理诊断评语、只说客观现象，自动化推送家长与教师端干预",
+    version="8.0.0"
 )
 
 app.add_middleware(
@@ -62,11 +63,43 @@ def read_root():
     if os.path.exists(index_path):
         with open(index_path, "r", encoding="utf-8") as f:
             return f.read()
-    return "<h1>智学伴 LearnMate 多模态伴读 AI Agent 服务运行中...</h1>"
+    return "<h1>智学伴 LearnMate 双端现象级推送服务运行中...</h1>"
 
 
 # ----------------------------------------------------------------------
-# 🎙️ 声学分析 & 🛡️ 行为边界管制 RESTful APIs
+# 📢 双端 (家长/教师) 现象级推送与非诊断合规 RESTful APIs
+# ----------------------------------------------------------------------
+
+@app.post("/api/v1/dispatch/evaluate", summary="评估并推送: 当出现行为异样时，自动向家长端与教师端推送纯现象观察")
+def evaluate_and_dispatch_alert(
+    student_id: str = Body("STU-2026"),
+    pause_duration_s: float = Body(240.0),
+    backspace_rate: float = Body(9.5),
+    user_input_text: str = Body("异分母通分不会"),
+    screen_distance_cm: float = Body(20.0),
+    current_hour: int = Body(21)
+):
+    alert = dispatch_engine.evaluate_and_dispatch(
+        student_id=student_id,
+        pause_duration_s=pause_duration_s,
+        backspace_rate=backspace_rate,
+        user_input_text=user_input_text,
+        screen_distance_cm=screen_distance_cm,
+        current_hour=current_hour
+    )
+    if not alert:
+        return {"status": "NO_ALERT", "message": "正常学习状态，无需推送双端干预"}
+    return alert.model_dump()
+
+
+@app.get("/api/v1/dispatch/alerts", summary="获取家长端/教师端接收到的最新现象级推送列表")
+def get_parent_teacher_alerts(student_id: str = "STU-2026"):
+    alerts = dispatch_engine.get_parent_teacher_alerts(student_id=student_id)
+    return [a.model_dump() for a in alerts]
+
+
+# ----------------------------------------------------------------------
+# 基础与已上线 APIs
 # ----------------------------------------------------------------------
 
 @app.post("/api/v1/voice/acoustic_chat", summary="声学分析 & 全双工语音伴学 (含关键行为向量化)")
@@ -78,10 +111,6 @@ def voice_acoustic_chat(req: VoiceChatRequest):
 def check_behavior_boundary(req: BehaviorBoundaryCheckRequest):
     return psychology_fsm_engine.check_behavior_boundary(req).model_dump()
 
-
-# ----------------------------------------------------------------------
-# 辅助与基础 APIs
-# ----------------------------------------------------------------------
 
 @app.post("/api/v1/vector/search", summary="Chroma 向量数据库：0-Token 高速语义记忆检索")
 def vector_search(query_text: str = Body("异分母分数"), top_k: int = Body(3)):

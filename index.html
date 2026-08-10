@@ -1324,19 +1324,22 @@
             rec.interimResults = true;
 
             rec.onstart = () => {
-                interruptAISpeech(); // ⚡ 用户一开口实时打断当前 AI 播音 (Barge-in)
                 const inputField = document.getElementById('chat-input-field');
                 if (inputField) inputField.placeholder = "🎙️ 麦克风已接通，正在聆听您的说话... 请对麦克风提问";
             };
 
             rec.onresult = (event) => {
-                interruptAISpeech(); // ⚡ 持续语音识别中再次确保实时打断！
                 let transcript = '';
                 for (let i = event.resultIndex; i < event.results.length; i++) {
                     transcript += event.results[i][0].transcript;
                 }
                 const inputField = document.getElementById('chat-input-field');
                 if (inputField) inputField.value = transcript;
+
+                // 🛡️ 防呼吸/杂音误触打断门限：只有当识别出有效字词 (长度 >= 2 字符，如“等等”、“Wait”、“Stop”、“こんにちは”) 时才打断 AI 发声！
+                if (transcript.trim().length >= 2) {
+                    interruptAISpeech();
+                }
             };
 
             rec.onerror = (event) => {

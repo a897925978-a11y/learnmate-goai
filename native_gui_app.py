@@ -281,11 +281,14 @@ class LearnMateNativeApp(ctk.CTk):
         # 🔑 检测并初始化 Windows 原生麦克风与扬声器硬件驱动
         self.mic_hardware_name, self.spk_hardware_name = get_audio_hardware_info()
 
-        # 初始化 Pygame Mixer 音频播放器
+        # 初始化 Pygame Mixer 音频播放器 (标准 Windows 44100Hz 2Channel 双声道 Max Volume)
         try:
-            pygame.mixer.init(frequency=24000, size=-16, channels=1, buffer=512)
-        except Exception:
-            pass
+            if pygame.mixer.get_init():
+                pygame.mixer.quit()
+            pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=512)
+            pygame.mixer.music.set_volume(1.0)
+        except Exception as e:
+            print("Pygame mixer init error:", e)
 
         # 关联后台守护线程
         self.backend_thread = threading.Thread(target=start_backend_server, daemon=True)
@@ -534,20 +537,33 @@ class LearnMateNativeApp(ctk.CTk):
                     with open(temp_mp3, "wb") as f:
                         f.write(raw_mp3_bytes)
 
-            # 播放音频
+            # 🎙️ 物理发声播放 (双重保险：Pygame 44100Hz 声卡直驱 + Win32 winsound 物理托底)
             if os.path.exists(temp_mp3):
+                played_successfully = False
                 try:
                     if not pygame.mixer.get_init():
-                        pygame.mixer.init(frequency=24000, size=-16, channels=1, buffer=512)
+                        pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=512)
+                    pygame.mixer.music.set_volume(1.0)
                     pygame.mixer.music.load(temp_mp3)
                     pygame.mixer.music.play()
+                    played_successfully = True
                     while pygame.mixer.music.get_busy():
                         time.sleep(0.05)
                 except Exception as py_err:
-                    print("Pygame audio error, retrying...", py_err)
-                    pygame.mixer.init(frequency=24000, size=-16, channels=1, buffer=512)
-                    pygame.mixer.music.load(temp_mp3)
-                    pygame.mixer.music.play()
+                    print("Pygame audio error, activating Win32 PlaySound Fallback...", py_err)
+                    played_successfully = False
+
+                if not played_successfully:
+                    try:
+                        from pydub import AudioSegment
+                        import winsound
+                        temp_wav = temp_mp3 + ".wav"
+                        AudioSegment.from_file(temp_mp3).export(temp_wav, format="wav")
+                        winsound.PlaySound(temp_wav, winsound.SND_FILENAME | winsound.SND_SYNC)
+                        if os.path.exists(temp_wav):
+                            os.remove(temp_wav)
+                    except Exception as ws_err:
+                        print("Winsound fallback error:", ws_err)
 
         except Exception as e:
             print("Speech Playback Exception:", e)

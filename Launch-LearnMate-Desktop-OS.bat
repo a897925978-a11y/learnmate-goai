@@ -7,6 +7,7 @@ echo ======================================================================
 set PYTHON_EXE=d:\AI_Work\.venv\Scripts\python.exe
 
 echo ⚡ 正在启动 8 大 Agent 全功能 Windows 原生 GUI 桌面客户端...
+cd /d "d:\AI_Work\人工智能大赛"
 %PYTHON_EXE% desktop_app.py
 
 if %ERRORLEVEL% NEQ 0 (

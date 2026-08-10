@@ -9,6 +9,23 @@ import os
 import time
 import threading
 import urllib.request
+
+# 🔑 针对 Windows 控制台编码预防 UnicodeEncodeError 崩溃
+if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
+    try: sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    except Exception: pass
+if sys.stderr and hasattr(sys.stderr, 'reconfigure'):
+    try: sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except Exception: pass
+
+def safe_print(*args, **kwargs):
+    """防止控制台打印 Emoji 引发 UnicodeEncodeError"""
+    try:
+        print(*args, **kwargs)
+    except Exception:
+        clean_args = [str(a).encode('ascii', 'ignore').decode('ascii') for a in args]
+        print(*clean_args, **kwargs)
+
 import webview
 import uvicorn
 
@@ -25,7 +42,7 @@ SERVER_URL = f"http://{HOST}:{PORT}"
 
 def start_backend_server():
     """在后台线程中平滑拉起 Uvicorn FastAPI 服务"""
-    print(f"🚀 [LearnMate Desktop Shell] 启动本地伴学引擎: {SERVER_URL}...")
+    safe_print(f"[LearnMate Desktop Shell] 启动本地伴学引擎: {SERVER_URL}...")
     uvicorn.run(app, host=HOST, port=PORT, log_level="warning")
 
 def wait_for_backend_ready():
@@ -34,7 +51,7 @@ def wait_for_backend_ready():
         try:
             with urllib.request.urlopen(SERVER_URL, timeout=1) as resp:
                 if resp.status == 200:
-                    print("✅ [LearnMate Desktop Shell] FastAPI 后台引擎就绪！")
+                    safe_print("[LearnMate Desktop Shell] FastAPI 后台引擎就绪！")
                     return True
         except Exception:
             time.sleep(0.2)
@@ -61,9 +78,9 @@ def main():
     )
 
     # 4. 启动 WebView2 原生桌面外壳
-    print("✨ [LearnMate Desktop Shell] 正在拉起 Windows 1440x900 原生 GUI 窗口...")
+    safe_print("[LearnMate Desktop Shell] 正在拉起 Windows 1440x900 原生 GUI 窗口...")
     webview.start(gui='edgechromium', debug=False)
-    print("👋 [LearnMate Desktop Shell] 桌面客户端正常退出。")
+    safe_print("[LearnMate Desktop Shell] 桌面客户端正常退出。")
 
 if __name__ == "__main__":
     main()

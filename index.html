@@ -994,16 +994,22 @@
         }
 
         async function sendChatMessage(voiceAudioBlobUrl = null, voiceAudioB64 = null, voiceText = '') {
+            const input = document.getElementById('chat-input-field');
+            const text = (voiceText || latestSpokenTranscript || (input ? input.value : '')).trim();
+            if (!text && !voiceAudioB64) return;
+
             if (isContinuousCallActive) {
-                // 🔑 实时电话对讲模式开启时，100% 屏蔽 HTTP POST，防止产生微信语音条与接口冲突！
-                const input = document.getElementById('chat-input-field');
+                // 🔑 实时电话对讲模式下打字或语音，统一秒级推向 WebSocket 流！
                 if (input) input.value = '';
+                latestSpokenTranscript = '';
+                sendWebSocketFrame({
+                    type: "input_audio_buffer.append",
+                    text: text,
+                    audio_b64: voiceAudioB64,
+                    voice_key: selectedVoiceKey
+                });
                 return;
             }
-
-            const input = document.getElementById('chat-input-field');
-            const text = (voiceText || input.value).trim();
-            if (!text && !voiceAudioB64) return;
 
             const chatBox = document.getElementById('chat-box');
             
@@ -1667,7 +1673,7 @@
                                 if (inputField) inputField.value = '';
                                 latestSpokenTranscript = ''; // 发送后清空全局变量
 
-                                if (finalText) {
+                                if (finalText || activeAudioB64) {
                                     sendWebSocketFrame({
                                         type: "input_audio_buffer.append",
                                         text: finalText,

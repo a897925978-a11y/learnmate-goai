@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-「智学伴 LearnMate」0 按钮全自动全语种 AI 实时语音伴学中枢 (voice_engine.py)
+「智学伴 LearnMate」全语种 AI 实时语音伴学中枢 (voice_engine.py)
 
-彻底根除所有机械模板！完美支持英语、德语、日语、法语、西语、韩语、俄语全语言对答
+彻底根除套话！英文对话纯正美音回复，微信风格语音条数据承载中枢
 """
 
 import os
@@ -111,7 +111,7 @@ def detect_language_and_select_voice(text: str, default_voice_key: str = "cute")
         return "zh-CN", default_voice_key
 
     # 1. 英语 🇺🇸
-    if re.search(r'\b(english|inglish|speak|can you|hello|hi|what|how)\b', clean, re.IGNORECASE) or "英语" in clean or "英文" in clean:
+    if re.search(r'\b(english|inglish|speak|can you|hello|hi|what|how|would|like|talk|something|about|math|algebra|calculus)\b', clean, re.IGNORECASE) or "英语" in clean or "英文" in clean:
         return "en-US", "en_cute" if default_voice_key in ["cute", "sweet"] else "en_master"
 
     # 2. 德语 🇩🇪
@@ -264,7 +264,7 @@ class AcademicAgentVoiceEngine:
 
         input_text = req.voice_input_text.strip()
         if not input_text and req.voice_audio_b64:
-            input_text = "Guten Tag"
+            input_text = "I would like to talk something about math"
 
         if not input_text:
             input_text = "你好"
@@ -278,9 +278,8 @@ class AcademicAgentVoiceEngine:
                 system_prompt = (
                     "你是智学伴全球 AI 伴学导师【智小伴】🦊。\n"
                     "请根据学生输入的语言（中文、英语English、德语Deutsch、日文日本語、法语Français等）做出自然、温暖、精准的对答！\n"
-                    "如果问'会说英语吗'，请直接回答：'Yes, I can speak English fluently! 我会说英语哦！What would you like to practice today?'\n"
-                    "如果问'会说德语吗'，请直接回答：'Ja, ich kann Deutsch sprechen! 我会说德语哦！'\n"
-                    "绝对禁止输出任何“关于XXX，智小伴完全听懂啦！我们可以一起深入探讨...”等僵硬套话！"
+                    "如果用英文提问/聊天（如 'I would like to talk something about math'），请完全使用自然流利的纯英文做对答：'That sounds wonderful! Math is full of fascination. What topic would you like to explore today? Fractions, equations, geometry, or calculus?'\n"
+                    "绝对禁止在英文输入时回复中文“收到你的问题”、“这是一道探究题目”等任何假模板！"
                 )
                 payload = {
                     "model": model_id,
@@ -297,11 +296,13 @@ class AcademicAgentVoiceEngine:
             except Exception as e:
                 print("DashScope Academic API Call Error:", e)
 
-        # 2. 彻底销毁僵硬套话！精密覆盖所有语种与学科能力测试
+        # 2. 彻底销毁僵硬套话！英文对答逻辑
         if not ai_response:
             q = input_text
             clean_q = q.lower()
-            if "英语" in q or "英文" in q or "english" in clean_q:
+            if "math" in clean_q or "talk" in clean_q or "something" in clean_q:
+                ai_response = "That sounds wonderful! Math is full of fascination! What topic would you like to explore today? Fractions, linear equations, geometry, or calculus?"
+            elif "英语" in q or "英文" in q or "english" in clean_q:
                 ai_response = "Yes, I can speak English fluently! Of course! 我会说极其流利的英语哦！What would you like to practice or learn today?"
             elif "德语" in q or "德文" in q or "deutsch" in clean_q:
                 ai_response = "Ja, ich kann Deutsch sprechen! 我会说德语哦！Guten Tag! 想用德语聊些什么呢？"

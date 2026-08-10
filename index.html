@@ -1342,12 +1342,12 @@
             }
             const rec = new SpeechRecognition();
             rec.lang = selectedSpeechLang;
-            rec.continuous = false;
+            rec.continuous = true;
             rec.interimResults = true;
 
             rec.onstart = () => {
                 const inputField = document.getElementById('chat-input-field');
-                if (inputField) inputField.placeholder = "🎙️ 麦克风已接通，正在聆听您的说话... 请对麦克风提问";
+                if (inputField) inputField.placeholder = "🎙️ 麦克风已接通，正在聆听您的完整说话... 请提问";
             };
 
             rec.onresult = (event) => {
@@ -1358,7 +1358,7 @@
                 const inputField = document.getElementById('chat-input-field');
                 if (inputField) inputField.value = transcript;
 
-                // 🛡️ 防呼吸/杂音误触打断门限：只有当识别出有效字词 (长度 >= 2 字符，如“等等”、“Wait”、“Stop”、“こんにちは”) 时才打断 AI 发声！
+                // 🛡️ 防呼吸/杂音误触打断门限
                 if (transcript.trim().length >= 2) {
                     interruptAISpeech();
                 }
@@ -1372,11 +1372,8 @@
             };
 
             rec.onend = () => {
+                stopMediaRecorder(); // 🎙️ 触发 MediaRecorder 的 onstop，生成真实微信语音条与转文本！
                 stopRecordingUI();
-                const inputField = document.getElementById('chat-input-field');
-                if (inputField && inputField.value.trim().length > 0) {
-                    sendChatMessage();
-                }
                 
                 // 📞 若全双工实时通话中，自动重启麦克风进行连续对讲！
                 if (isContinuousCallActive) {

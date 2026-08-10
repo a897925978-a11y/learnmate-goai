@@ -956,29 +956,50 @@
             if (e.key === 'Enter') sendChatMessage();
         }
 
-        async function sendChatMessage() {
+        async function sendChatMessage(voiceAudioBlobUrl = null, voiceAudioB64 = null, voiceText = '') {
             const input = document.getElementById('chat-input-field');
-            const text = input.value.trim();
-            if (!text) return;
+            const text = (voiceText || input.value).trim();
+            if (!text && !voiceAudioB64) return;
 
             const chatBox = document.getElementById('chat-box');
             
-            // 追加用户气泡
+            // 🎙️ 追加微信风格语音条消息气泡 / 文本气泡
             const userBubble = document.createElement('div');
             userBubble.className = 'msg-bubble msg-user';
-            userBubble.innerText = text;
+
+            if (voiceAudioBlobUrl) {
+                userBubble.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+                userBubble.style.cursor = 'pointer';
+                userBubble.style.boxShadow = '0 6px 20px rgba(16,185,129,0.4)';
+                userBubble.onclick = () => {
+                    const audio = new Audio(voiceAudioBlobUrl);
+                    audio.play().catch(() => {});
+                };
+                userBubble.innerHTML = `
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:1rem;">
+                        <span style="font-weight:800; font-size:0.88rem;">🎙️ 语音消息 (点击播放原始音频)</span>
+                        <span style="font-size:1.1rem; animation:pulse-dot 1.5s infinite;">🔊</span>
+                    </div>
+                    <div style="font-size:0.75rem; color:rgba(255,255,255,0.9); margin-top:0.4rem; border-top:1px dashed rgba(255,255,255,0.35); padding-top:0.3rem;">
+                        💬 自动转文字：${text || '后端 ASR 解码转录中...'}
+                    </div>
+                `;
+            } else {
+                userBubble.innerText = text;
+            }
+
             chatBox.appendChild(userBubble);
             input.value = '';
             chatBox.scrollTop = chatBox.scrollHeight;
 
             // 检查高危心理词汇硬阻断
             const highRisk = ["自杀", "自残", "跳楼", "活着没意思", "想死"];
-            if (highRisk.some(w => text.includes(w))) {
+            if (text && highRisk.some(w => text.includes(w))) {
                 document.getElementById('crisis-modal').style.display = 'flex';
                 return;
             }
 
-            // 请求后端真实通义千问 Qwen API 伴学接口
+            // 请求后端真实通义千问 Qwen API 伴学接口 (传递原始 WebM 语音 Blob Base64)
             try {
                 const res = await fetch(`${API_BASE}/api/v1/voice/acoustic_chat`, {
                     method: 'POST',
@@ -986,6 +1007,7 @@
                     body: JSON.stringify({
                         student_id: "STU-2026",
                         voice_input_text: text,
+                        voice_audio_b64: voiceAudioB64,
                         selected_voice_key: selectedVoiceKey,
                         audio_wpm: 120.0,
                         audio_pause_s: 1.5
@@ -1380,6 +1402,48 @@
             if (inputField) inputField.placeholder = "输入你想问的数学概念或题目...";
         }
 
+        /* 🎙️ 微信式真实语音条录制器 (MediaRecorder Raw Audio Blob + 微信风格语音条气泡) */
+        let mediaRecorderInstance = null;
+        let recordedAudioChunks = [];
+        let activeAudioBlobUrl = null;
+        let activeAudioB64 = null;
+
+        function startMediaRecorder() {
+            recordedAudioChunks = [];
+            activeAudioBlobUrl = null;
+            activeAudioB64 = null;
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+                    mediaRecorderInstance = new MediaRecorder(stream);
+                    mediaRecorderInstance.ondataavailable = e => {
+                        if (e.data.size > 0) recordedAudioChunks.push(e.data);
+                    };
+                    mediaRecorderInstance.onstop = () => {
+                        const blob = new Blob(recordedAudioChunks, { type: 'audio/webm' });
+                        activeAudioBlobUrl = URL.createObjectURL(blob);
+                        
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                            activeAudioB64 = reader.result;
+                            const inputField = document.getElementById('chat-input-field');
+                            const currentText = inputField ? inputField.value.trim() : '';
+                            sendChatMessage(activeAudioBlobUrl, activeAudioB64, currentText);
+                        };
+                        reader.readAsDataURL(blob);
+                    };
+                    mediaRecorderInstance.start();
+                }).catch(err => {
+                    console.warn("MediaRecorder mic access error:", err);
+                });
+            }
+        }
+
+        function stopMediaRecorder() {
+            if (mediaRecorderInstance && mediaRecorderInstance.state !== 'inactive') {
+                try { mediaRecorderInstance.stop(); } catch(e){}
+            }
+        }
+
         function toggleVoiceMic() {
             const btn = document.getElementById('mic-toggle-btn');
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1388,6 +1452,8 @@
                 isRecording = true;
                 btn.style.background = '#ef4444';
                 btn.innerText = '⏹️';
+
+                startMediaRecorder(); // 🎙️ 开启微信风格原生音频 Blob 录制
 
                 if (SpeechRecognition) {
                     if (!speechRecognitionInstance) {
@@ -1398,25 +1464,12 @@
                     } catch (e) {
                         console.warn("Speech recognition already running:", e);
                     }
-                } else {
-                    // 请求硬件麦克风权限提示
-                    navigator.mediaDevices.getUserMedia({ audio: true }).then(() => {
-                        const inputField = document.getElementById('chat-input-field');
-                        if (inputField && inputField.value.trim().length > 0) {
-                            sendChatMessage();
-                        } else {
-                            alert("🎤 麦克风硬件已连通！请在下方输入框打字发送提问。");
-                            stopRecordingUI();
-                        }
-                    }).catch(err => {
-                        alert("⚠️ 未检测到可用的麦克风硬件，请确保麦克风已插入电脑并允许浏览器权限！");
-                        stopRecordingUI();
-                    });
                 }
             } else {
                 if (speechRecognitionInstance) {
                     try { speechRecognitionInstance.stop(); } catch(e){}
                 }
+                stopMediaRecorder(); // 🛑 停止录制并生成微信语音气泡下发后端！
                 stopRecordingUI();
             }
         }

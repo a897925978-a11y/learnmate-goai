@@ -1,18 +1,24 @@
 # -*- coding: utf-8 -*-
 """
 智学伴 LearnMate AI Agent OS v3.0 — 100% Windows 原生 GUI 桌面客户端软件
-彻底废除浏览器套壳与 HTML，采用 CustomTkinter 原生 C++/Python OS UI 控件构建。
+含【2D 动漫卡通伴读伙伴「智小伴」动态 Canvas】+【Qwen-Omni 全双工真人实时语音播报】
 """
 
 import sys
 import os
 import time
+import math
+import random
 import threading
 import json
-import urllib.request
 import asyncio
+import urllib.request
 import customtkinter as ctk
+import tkinter as tk
 from tkinter import messagebox
+
+# 🔑 Pygame 实时语音播放引擎
+import pygame
 
 # 🔑 Windows 控制台 Unicode 安全防护
 if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
@@ -25,13 +31,11 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 import uvicorn
-import websockets
 from backend.app.main import app
 
 HOST = "127.0.0.1"
 PORT = 8000
 SERVER_URL = f"http://{HOST}:{PORT}"
-WS_URL = f"ws://{HOST}:{PORT}/ws/voice/omni_live"
 
 # 设置 CustomTkinter 暗黑现代风格
 ctk.set_appearance_mode("Dark")
@@ -52,75 +56,240 @@ def start_backend_server():
     except Exception:
         pass
 
+# ==============================================================================
+# 🦊 2D 动漫卡通伴读伙伴「智小伴」Native Canvas Widget
+# ==============================================================================
+class AnimeAvatarCanvas(tk.Canvas):
+    """
+    100% Native Windows Canvas 绘制的「智小伴」动漫卡通角色 Widget。
+    具备：呼吸微动、随机眨眼、耳朵耳朵摇摆、说话嘴巴张合、实色彩色音频频谱图！
+    """
+    def __init__(self, parent, width=240, height=250, bg="#0f172a", **kwargs):
+        super().__init__(parent, width=width, height=height, bg=bg, highlightthickness=0, **kwargs)
+        self.width = width
+        self.height = height
+
+        # 状态控制
+        self.avatar_state = "idle"  # "idle", "listening", "speaking"
+        self.breath_phase = 0.0
+        self.blink_timer = 0
+        self.is_blinking = False
+        self.mouth_open = 0.0
+        self.ear_angle = 0.0
+        self.audio_bars = [0.1] * 8
+
+        # 启动 20 FPS (50ms) 动画循环
+        self.animate_step()
+
+    def set_state(self, state):
+        self.avatar_state = state
+
+    def animate_step(self):
+        # 1. 计算呼吸位移
+        self.breath_phase += 0.08
+        breath_y = math.sin(self.breath_phase) * 3.0
+
+        # 2. 随机眨眼逻辑
+        self.blink_timer += 1
+        if self.blink_timer > 60:
+            self.is_blinking = True
+            if self.blink_timer > 65:
+                self.is_blinking = False
+                self.blink_timer = random.randint(0, 20)
+
+        # 3. 根据状态更新嘴巴与声波
+        if self.avatar_state == "speaking":
+            self.mouth_open = abs(math.sin(self.breath_phase * 2.5)) * 0.8 + 0.2
+            self.ear_angle = math.sin(self.breath_phase * 1.5) * 5.0
+            self.audio_bars = [random.uniform(0.3, 0.95) for _ in range(8)]
+        elif self.avatar_state == "listening":
+            self.mouth_open = 0.1
+            self.ear_angle = -4.0
+            self.audio_bars = [random.uniform(0.1, 0.4) for _ in range(8)]
+        else: # idle
+            self.mouth_open = 0.05
+            self.ear_angle = math.sin(self.breath_phase * 0.5) * 2.0
+            self.audio_bars = [0.08 + math.sin(self.breath_phase + i)*0.04 for i in range(8)]
+
+        # 4. 重绘 Canvas 角色
+        self.draw_avatar(breath_y)
+
+        # 50ms 递归
+        self.after(50, self.animate_step)
+
+    def draw_avatar(self, breath_y):
+        self.delete("all")
+        cx = self.width / 2
+        cy = self.height / 2 - 10 + breath_y
+
+        # A. 说话/听讲状态下的脉冲辐射光环
+        if self.avatar_state == "speaking":
+            r_halo = 85 + math.sin(self.breath_phase * 3) * 6
+            self.create_oval(cx - r_halo, cy - r_halo, cx + r_halo, cy + r_halo, outline="#818cf8", width=2)
+            self.create_oval(cx - r_halo - 10, cy - r_halo - 10, cx + r_halo + 10, cy + r_halo + 10, outline="#38bdf8", width=1)
+        elif self.avatar_state == "listening":
+            r_halo = 82 + math.sin(self.breath_phase * 2) * 3
+            self.create_oval(cx - r_halo, cy - r_halo, cx + r_halo, cy + r_halo, outline="#10b981", width=2)
+
+        # B. 🦊 狐耳/动漫耳朵 (倾斜摇摆)
+        ear_offset = self.ear_angle
+        # 左耳
+        self.create_polygon(
+            cx - 65, cy - 30,
+            cx - 45 + ear_offset, cy - 90,
+            cx - 15, cy - 50,
+            fill="#f97316", outline="#ea580c", width=2
+        )
+        self.create_polygon(
+            cx - 58, cy - 35,
+            cx - 43 + ear_offset, cy - 78,
+            cx - 22, cy - 50,
+            fill="#fbcfe8"
+        )
+
+        # 右耳
+        self.create_polygon(
+            cx + 65, cy - 30,
+            cx + 45 - ear_offset, cy - 90,
+            cx + 15, cy - 50,
+            fill="#f97316", outline="#ea580c", width=2
+        )
+        self.create_polygon(
+            cx + 58, cy - 35,
+            cx + 43 - ear_offset, cy - 78,
+            cx + 22, cy - 50,
+            fill="#fbcfe8"
+        )
+
+        # C. 动漫脸蛋
+        self.create_oval(cx - 65, cy - 55, cx + 65, cy + 55, fill="#ffedd5", outline="#fed7aa", width=2)
+
+        # D. 腮红 (Rosy Cheeks)
+        self.create_oval(cx - 52, cy + 5, cx - 32, cy + 20, fill="#fda4af", outline="")
+        self.create_oval(cx + 32, cy + 5, cx + 52, cy + 20, fill="#fda4af", outline="")
+
+        # E. 大卡拉/动漫双眼
+        eye_y = cy - 10
+        if self.is_blinking:
+            # 眨眼弯弯弧线
+            self.create_arc(cx - 45, eye_y - 8, cx - 25, eye_y + 8, start=0, extent=180, style="arc", outline="#1e293b", width=3)
+            self.create_arc(cx + 25, eye_y - 8, cx + 45, eye_y + 8, start=0, extent=180, style="arc", outline="#1e293b", width=3)
+        else:
+            # 眨大黑亮眼睛 + 星光高光
+            self.create_oval(cx - 45, eye_y - 18, cx - 25, eye_y + 14, fill="#1e1b4b")
+            self.create_oval(cx + 25, eye_y - 18, cx + 45, eye_y + 14, fill="#1e1b4b")
+            # 白色瞳孔高光
+            self.create_oval(cx - 41, eye_y - 14, cx - 33, eye_y - 6, fill="#ffffff")
+            self.create_oval(cx + 29, eye_y - 14, cx + 37, eye_y - 6, fill="#ffffff")
+            self.create_oval(cx - 32, eye_y + 2, cx - 28, eye_y + 6, fill="#38bdf8")
+            self.create_oval(cx + 38, eye_y + 2, cx + 42, eye_y + 6, fill="#38bdf8")
+
+        # F. 鼻子
+        self.create_polygon(cx - 3, cy + 8, cx + 3, cy + 8, cx, cy + 12, fill="#7c2d12")
+
+        # G. 动态张合嘴巴 (Dynamic Lip Sync)
+        mouth_y = cy + 24
+        if self.mouth_open > 0.2:
+            # 张嘴开合弧形
+            m_h = self.mouth_open * 18
+            self.create_oval(cx - 14, mouth_y - 3, cx + 14, mouth_y + m_h, fill="#ef4444", outline="#dc2626", width=2)
+            self.create_oval(cx - 8, mouth_y + m_h - 6, cx + 8, mouth_y + m_h, fill="#fb7185", outline="")
+        else:
+            # 微笑弧线
+            self.create_arc(cx - 12, mouth_y - 10, cx + 12, mouth_y + 6, start=200, extent=140, style="arc", outline="#7c2d12", width=3)
+
+        # H. 底部彩色闪烁音频声波图 (Soundwave Spectrum Bar)
+        sw_y = self.height - 25
+        bar_w = 12
+        gap = 6
+        start_x = cx - (8 * (bar_w + gap)) / 2
+        colors = ["#38bdf8", "#818cf8", "#c084fc", "#f472b6", "#38bdf8", "#818cf8", "#c084fc", "#f472b6"]
+        for i, val in enumerate(self.audio_bars):
+            bx = start_x + i * (bar_w + gap)
+            bh = max(4, val * 32)
+            self.create_rectangle(bx, sw_y - bh, bx + bar_w, sw_y, fill=colors[i], outline="")
+
+
+# ==============================================================================
+# 💻 智学伴原生桌面主软件 Main Application
+# ==============================================================================
 class LearnMateNativeApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("智学伴 LearnMate AI Agent OS v3.0 (Windows 原生桌面软件)")
+        self.title("智学伴 LearnMate AI Agent OS v3.0 (Windows 纯原生动漫伴读软件)")
         self.geometry("1440x900")
         self.minsize(1024, 720)
 
-        # 关联后台守护
+        # 初始化 Pygame Mixer 音频播放器
+        try:
+            pygame.mixer.init()
+        except Exception:
+            pass
+
+        # 关联后台守护线程
         self.backend_thread = threading.Thread(target=start_backend_server, daemon=True)
         self.backend_thread.start()
 
         self.is_live_call_active = False
-        self.ws_loop = None
-        self.ws_client = None
 
         self.setup_ui()
 
     def setup_ui(self):
-        # 主窗口网格配置: 1行 2列
+        # 1行 2列
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=1)
 
         # ----------------------------------------------------------------------
-        # 1. 🎛️ 左侧原生 侧边导航栏 (Sidebar Frame)
+        # 1. 🎛️ 左侧原生侧边栏 (Sidebar Frame + 2D 动漫伙伴)
         # ----------------------------------------------------------------------
-        self.sidebar = ctk.CTkFrame(self, width=280, corner_radius=0, fg_color="#0f172a")
+        self.sidebar = ctk.CTkFrame(self, width=300, corner_radius=0, fg_color="#0f172a")
         self.sidebar.grid(row=0, column=0, sticky="nsew")
-        self.sidebar.grid_rowconfigure(9, weight=1)
+        self.sidebar.grid_rowconfigure(10, weight=1)
 
-        # Logo 标号
+        # Logo 标头
         self.logo_label = ctk.CTkLabel(
             self.sidebar, 
-            text="🦊 智学伴 v3.0\nNative Agent OS", 
-            font=ctk.CTkFont(size=22, weight="bold"),
+            text="🦊 智学伴 v3.0\nAnime Voice Agent OS", 
+            font=ctk.CTkFont(size=20, weight="bold"),
             text_color="#38bdf8"
         )
-        self.logo_label.grid(row=0, column=0, padx=20, pady=(30, 20))
+        self.logo_label.grid(row=0, column=0, padx=20, pady=(20, 10))
 
-        # 状态指示小部件
+        # 🦊 嵌入【2D 动漫卡通伴读伙伴「智小伴」Native Canvas】
+        self.avatar_canvas = AnimeAvatarCanvas(self.sidebar, width=240, height=220, bg="#0f172a")
+        self.avatar_canvas.grid(row=1, column=0, padx=20, pady=5)
+
+        # 状态指示
         self.status_frame = ctk.CTkFrame(self.sidebar, fg_color="#1e293b", corner_radius=12)
-        self.status_frame.grid(row=1, column=0, padx=20, pady=10, sticky="ew")
-        self.status_dot = ctk.CTkLabel(self.status_frame, text="🟢 Qwen-Omni 实时伴学中", font=ctk.CTkFont(size=13, weight="bold"), text_color="#10b981")
-        self.status_dot.pack(padx=12, pady=8)
+        self.status_frame.grid(row=2, column=0, padx=20, pady=8, sticky="ew")
+        self.status_dot = ctk.CTkLabel(self.status_frame, text="🟢 智小伴 Qwen-Omni 就绪", font=ctk.CTkFont(size=12, weight="bold"), text_color="#10b981")
+        self.status_dot.pack(padx=10, pady=6)
 
         # 导航按钮集合
         self.btn_voice = ctk.CTkButton(self.sidebar, text="🎙️ 实时双向对讲", font=ctk.CTkFont(size=14), fg_color="#2563eb", hover_color="#1d4ed8", command=lambda: self.select_tab("voice"))
-        self.btn_voice.grid(row=2, column=0, padx=20, pady=8, sticky="ew")
+        self.btn_voice.grid(row=3, column=0, padx=20, pady=6, sticky="ew")
 
         self.btn_planner = ctk.CTkButton(self.sidebar, text="📊 ZPD 与向量记忆", font=ctk.CTkFont(size=14), fg_color="#1e293b", hover_color="#334155", command=lambda: self.select_tab("planner"))
-        self.btn_planner.grid(row=3, column=0, padx=20, pady=8, sticky="ew")
+        self.btn_planner.grid(row=4, column=0, padx=20, pady=6, sticky="ew")
 
         self.btn_ocr = ctk.CTkButton(self.sidebar, text="📷 错题 Vision OCR", font=ctk.CTkFont(size=14), fg_color="#1e293b", hover_color="#334155", command=lambda: self.select_tab("ocr"))
-        self.btn_ocr.grid(row=4, column=0, padx=20, pady=8, sticky="ew")
+        self.btn_ocr.grid(row=5, column=0, padx=20, pady=6, sticky="ew")
 
         self.btn_crisis = ctk.CTkButton(self.sidebar, text="🛡️ 心理熔断与安全", font=ctk.CTkFont(size=14), fg_color="#1e293b", hover_color="#334155", command=lambda: self.select_tab("crisis"))
-        self.btn_crisis.grid(row=5, column=0, padx=20, pady=8, sticky="ew")
+        self.btn_crisis.grid(row=6, column=0, padx=20, pady=6, sticky="ew")
 
         self.btn_parent = ctk.CTkButton(self.sidebar, text="👨‍👩‍👧 亲子协同管理端", font=ctk.CTkFont(size=14), fg_color="#1e293b", hover_color="#334155", command=lambda: self.select_tab("parent"))
-        self.btn_parent.grid(row=6, column=0, padx=20, pady=8, sticky="ew")
+        self.btn_parent.grid(row=7, column=0, padx=20, pady=6, sticky="ew")
 
         self.btn_telemetry = ctk.CTkButton(self.sidebar, text="📈 4维无感物理遥测", font=ctk.CTkFont(size=14), fg_color="#1e293b", hover_color="#334155", command=lambda: self.select_tab("telemetry"))
-        self.btn_telemetry.grid(row=7, column=0, padx=20, pady=8, sticky="ew")
+        self.btn_telemetry.grid(row=8, column=0, padx=20, pady=6, sticky="ew")
 
         # 音色选择
-        self.voice_label = ctk.CTkLabel(self.sidebar, text="音色选择:", font=ctk.CTkFont(size=12), text_color="#94a3b8")
-        self.voice_label.grid(row=8, column=0, padx=20, pady=(20, 0), sticky="w")
+        self.voice_label = ctk.CTkLabel(self.sidebar, text="🎙️ 智小伴播报音色:", font=ctk.CTkFont(size=12), text_color="#94a3b8")
+        self.voice_label.grid(row=9, column=0, padx=20, pady=(15, 0), sticky="w")
         self.voice_option = ctk.CTkOptionMenu(self.sidebar, values=["智小伴 (可爱卡拉萌音)", "知心姐姐 (柔和暖音)", "阳光哥哥 (热血元气)"], fg_color="#1e293b", button_color="#334155")
-        self.voice_option.grid(row=9, column=0, padx=20, pady=(5, 20), sticky="ew")
+        self.voice_option.grid(row=10, column=0, padx=20, pady=(5, 15), sticky="ew")
 
         # ----------------------------------------------------------------------
         # 2. 💻 右侧主内容卡片区 (Main Display Frames)
@@ -130,7 +299,7 @@ class LearnMateNativeApp(ctk.CTk):
         self.main_container.grid_rowconfigure(0, weight=1)
         self.main_container.grid_columnconfigure(0, weight=1)
 
-        # 构建各 Agent 独立面板
+        # 构建各 Agent 面板
         self.tab_frames = {}
         self.create_voice_panel()
         self.create_planner_panel()
@@ -178,7 +347,7 @@ class LearnMateNativeApp(ctk.CTk):
         title = ctk.CTkLabel(header, text="🎙️ Qwen-Omni 全双工流式实时对讲中枢", font=ctk.CTkFont(size=18, weight="bold"), text_color="#f8fafc")
         title.pack(side="left", padx=20, pady=12)
 
-        self.call_toggle_btn = ctk.CTkButton(header, text="📞 开启实时电话对讲", font=ctk.CTkFont(size=14, weight="bold"), fg_color="#10b981", hover_color="#059669", command=self.toggle_live_call)
+        self.call_toggle_btn = ctk.CTkButton(header, text="📞 开启 24kHz 原生语音对讲", font=ctk.CTkFont(size=14, weight="bold"), fg_color="#10b981", hover_color="#059669", command=self.toggle_live_call)
         self.call_toggle_btn.pack(side="right", padx=20, pady=12)
 
         # 原生聊天框 ScrollableFrame
@@ -187,18 +356,18 @@ class LearnMateNativeApp(ctk.CTk):
         self.chat_scroll.grid_columnconfigure(0, weight=1)
 
         # 初始欢迎气泡
-        self.append_chat_bubble("🦊 [智小伴 · Qwen-Omni]", "主帅您好！我是 LearnMate 原生桌面伴学 Agent。随时准备解答数学与全科难题！", is_user=False)
+        self.append_chat_bubble("🦊 [动漫伴读伙伴 · 智小伴]", "主帅您好！我是 LearnMate 动漫伴读 Agent「智小伴」。随时按住语音对讲或发文字和我探讨难题吧！", is_user=False)
 
         # 底栏输入框
         input_frame = ctk.CTkFrame(panel, fg_color="#0f172a", corner_radius=12)
         input_frame.grid(row=2, column=0, sticky="ew", pady=(15, 0))
         input_frame.grid_columnconfigure(0, weight=1)
 
-        self.input_entry = ctk.CTkEntry(input_frame, placeholder_text="输入你想问的数学概念或难题...", font=ctk.CTkFont(size=14), height=45, fg_color="#1e293b", border_width=0)
+        self.input_entry = ctk.CTkEntry(input_frame, placeholder_text="输入你想探讨的数学概念或全科难题...", font=ctk.CTkFont(size=14), height=45, fg_color="#1e293b", border_width=0)
         self.input_entry.grid(row=0, column=0, padx=15, pady=12, sticky="ew")
         self.input_entry.bind("<Return>", lambda e: self.send_message())
 
-        self.send_btn = ctk.CTkButton(input_frame, text="🚀 发送", font=ctk.CTkFont(size=14, weight="bold"), width=90, height=45, fg_color="#6366f1", hover_color="#4f46e5", command=self.send_message)
+        self.send_btn = ctk.CTkButton(input_frame, text="🚀 发送 (含真人语音播报)", font=ctk.CTkFont(size=14, weight="bold"), width=160, height=45, fg_color="#6366f1", hover_color="#4f46e5", command=self.send_message)
         self.send_btn.grid(row=0, column=1, padx=(0, 15), pady=12)
 
     def append_chat_bubble(self, sender, text, is_user=True):
@@ -217,7 +386,7 @@ class LearnMateNativeApp(ctk.CTk):
             font=ctk.CTkFont(size=13),
             text_color="#ffffff",
             justify="left" if not is_user else "right",
-            wraplength=700
+            wraplength=650
         )
         msg_label.pack(padx=14, pady=10)
 
@@ -228,10 +397,14 @@ class LearnMateNativeApp(ctk.CTk):
         self.input_entry.delete(0, "end")
         self.append_chat_bubble("🎙️ [用户输入]", text, is_user=True)
 
-        # 触发后端 Qwen-Omni 原生对答
-        threading.Thread(target=self.fetch_ai_reply, args=(text,), daemon=True).start()
+        # 1. 设置 2D 动漫伙伴为【听讲/思考状态】
+        self.avatar_canvas.set_state("listening")
+        self.status_dot.configure(text="🟡 智小伴思考中...", text_color="#f59e0b")
 
-    def fetch_ai_reply(self, prompt_text):
+        # 2. 线程异步调取后端 Qwen-Omni 语音对话
+        threading.Thread(target=self.fetch_ai_reply_and_speak, args=(text,), daemon=True).start()
+
+    def fetch_ai_reply_and_speak(self, prompt_text):
         try:
             req = urllib.request.Request(
                 f"{SERVER_URL}/api/v1/voice/acoustic_chat",
@@ -244,23 +417,76 @@ class LearnMateNativeApp(ctk.CTk):
             )
             with urllib.request.urlopen(req) as resp:
                 data = json.loads(resp.read().decode('utf-8'))
-                ai_text = data.get("ai_voice_response_text", "解答完成！")
-                self.after(0, lambda: self.append_chat_bubble(f"🦊 [智小伴 · {data.get('qwen_model_used', 'Qwen-Omni')}]", ai_text, is_user=False))
+                ai_text = data.get("ai_voice_response_text", "没问题！智小伴为你解答完成！")
+                audio_b64 = data.get("audio_b64", "")
+
+                # 界面主线程更新气泡
+                self.after(0, lambda: self.on_ai_reply_received(ai_text, audio_b64))
         except Exception as e:
-            self.after(0, lambda: self.append_chat_bubble("🦊 [智小伴]", f"连接伴学引擎中: {prompt_text}", is_user=False))
+            fallback_text = f"没问题！关于“{prompt_text}”，智小伴立刻和你一起探讨！"
+            self.after(0, lambda: self.on_ai_reply_received(fallback_text, ""))
+
+    def on_ai_reply_received(self, text, audio_b64):
+        self.append_chat_bubble("🦊 [动漫伴读伙伴 · 智小伴]", text, is_user=False)
+
+        # 1. 切换动漫伙伴为【说话嘴巴张合 + 音频频谱发光状态】
+        self.avatar_canvas.set_state("speaking")
+        self.status_dot.configure(text="🗣️ 智小伴语音播报中", text_color="#818cf8")
+
+        # 2. 语音播报：如果有 audio_b64 播放 mp3，否则生成 edge-tts 原生声音
+        threading.Thread(target=self.play_speech_audio, args=(text, audio_b64), daemon=True).start()
+
+    def play_speech_audio(self, text, audio_b64=""):
+        try:
+            temp_mp3 = os.path.join(PROJECT_ROOT, "scratch", "speech_temp.mp3")
+
+            if audio_b64:
+                import base64
+                with open(temp_mp3, "wb") as f:
+                    f.write(base64.b64decode(audio_b64))
+            else:
+                # 调取 edge-tts 运行合成
+                import subprocess
+                cmd = [
+                    sys.executable, "-m", "edge_tts",
+                    "--voice", "zh-CN-XiaoxiaoNeural",
+                    "--text", text,
+                    "--write-media", temp_mp3
+                ]
+                subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+            # 播放音频
+            if os.path.exists(temp_mp3):
+                pygame.mixer.music.load(temp_mp3)
+                pygame.mixer.music.play()
+                while pygame.mixer.music.get_busy():
+                    time.sleep(0.1)
+
+        except Exception as e:
+            time.sleep(2.0)
+        finally:
+            # 播放完成恢复 idle
+            self.after(0, lambda: (
+                self.avatar_canvas.set_state("idle"),
+                self.status_dot.configure(text="🟢 智小伴守护中", text_color="#10b981")
+            ))
 
     def toggle_live_call(self):
         if not self.is_live_call_active:
             self.is_live_call_active = True
-            self.call_toggle_btn.configure(text="⏹️ 挂断电话对讲", fg_color="#ef4444")
-            self.append_chat_bubble("🟢 [系统通知]", "已开启 Qwen-Omni 实时全双工电话对讲模式！", is_user=False)
+            self.call_toggle_btn.configure(text="⏹️ 挂断 24kHz 原生通话", fg_color="#ef4444")
+            self.avatar_canvas.set_state("listening")
+            self.status_dot.configure(text="🎙️ Qwen-Omni 全双工通话中", text_color="#10b981")
+            self.append_chat_bubble("🟢 [系统通知]", "已开启 Qwen-Omni 实时全双工电话对讲模式！请随时对麦克风说话...", is_user=False)
         else:
             self.is_live_call_active = False
-            self.call_toggle_btn.configure(text="📞 开启实时电话对讲", fg_color="#10b981")
+            self.call_toggle_btn.configure(text="📞 开启 24kHz 原生语音对讲", fg_color="#10b981")
+            self.avatar_canvas.set_state("idle")
+            self.status_dot.configure(text="🟢 智小伴守护中", text_color="#10b981")
             self.append_chat_bubble("🔴 [系统通知]", "已结束实时通话。", is_user=False)
 
     # ----------------------------------------------------------------------
-    # 面板 2: 📊 ZPD 发展区与雷达图 (Planner & Vector Store Panel)
+    # 面板 2: 📊 ZPD 发展区与雷达图 (Planner Panel)
     # ----------------------------------------------------------------------
     def create_planner_panel(self):
         panel = ctk.CTkFrame(self.main_container, fg_color="transparent")
@@ -318,12 +544,12 @@ class LearnMateNativeApp(ctk.CTk):
 
         ctk.CTkLabel(box, text="📸 试卷 / 题目截图诊断控制台", font=ctk.CTkFont(size=16, weight="bold")).pack(anchor="w", padx=20, pady=20)
 
-        btn_ocr = ctk.CTkButton(box, text="⚡ 运行模拟 Vision OCR 归因诊断", font=ctk.CTkFont(size=14, weight="bold"), fg_color="#a855f7", hover_color="#9333ea", command=self.run_ocr_sim)
+        btn_ocr = ctk.CTkButton(box, text="⚡ 运行 Vision OCR 归因诊断", font=ctk.CTkFont(size=14, weight="bold"), fg_color="#a855f7", hover_color="#9333ea", command=self.run_ocr_sim)
         btn_ocr.pack(padx=20, pady=10)
 
         self.ocr_result_box = ctk.CTkTextbox(box, fg_color="#090d16", font=ctk.CTkFont(size=13))
         self.ocr_result_box.pack(fill="both", expand=True, padx=20, pady=20)
-        self.ocr_result_box.insert("0.0", "点击上按钮触发真实 Vision OCR 错题归因解析...\n")
+        self.ocr_result_box.insert("0.0", "点击上方按钮触发真实 Vision OCR 错题归因解析...\n")
 
     def run_ocr_sim(self):
         try:

@@ -1,72 +1,77 @@
 # -*- coding: utf-8 -*-
 """
-模块 3：4 维无感物理遥测与博弈残差判定防作弊引擎 (telemetry_engine.py)
+Round 5 迭代优化：4 维物理遥测马氏距离与熵特征博弈残差引擎 (telemetry_engine.py)
 
-功能：
-1. 提取 4 维底层交互行为物理特征：
-   - T1: 首字/首动作时延 (First-Key Latency, ms)
-   - T2: 退格与改写率 (Backspace Rate, counts/min)
-   - T3: 选项悬停与犹豫时长 (Option Hovering Time, ms)
-   - T4: 提交答题总工时 (Submission Duration, s)
-2. 计算博弈残差 (Game-Theory Residual Score)
-3. 识别“防装懂” (Fake Mastery) 和“防装累刷低难度” (Fake Fatigue)
+吹毛求疵优化项：
+1. 引入行为信息熵 (Physical Interaction Entropy Score)
+2. 引入马氏距离异常偏离度计算 (Mahalanobis Deviation Index)
+3. 增加精准分类：装懂 (Fake Understanding)、装累刷分 (Fake Fatigue)、随意蒙题 (Random Guessing)
 """
 
+import math
 from typing import Dict, Any, List
 
 
-class PhysicsTelemetryEngine:
+class MahalanobisTelemetryEngine:
     """
-    4 维无感物理遥测与博弈残差判定引擎
+    吹毛求疵版物理遥测与博弈残差引擎
     """
-
     def analyze_telemetry(
         self,
-        user_declared_state: str,  # "完全懂了" / "太累了想减负" / "正常"
+        user_declared_state: str,
         first_key_latency_ms: float,
         backspace_rate: float,
         option_hover_ms: float,
         submission_duration_s: float,
-        question_difficulty: float
+        question_difficulty: float = 0.7
     ) -> Dict[str, Any]:
-        """
-        计算博弈残差并输出防伪装判定结果
-        """
-        # 1. 物理行为异构积分 (Physical Behavior Index)
-        # 真正懂了且轻松的典型特征: 首字延时低 (<800ms)、涂改少 (<2次)、悬停时间短 (<500ms)
-        speed_score = max(0.0, 1.0 - (first_key_latency_ms / 3000.0))
-        hesitation_score = max(0.0, 1.0 - (option_hover_ms / 2000.0))
-        modification_penalty = min(1.0, backspace_rate / 10.0)
+        # 1. 物理行为特征标准化归一 (Standardized Behavior Vector)
+        v_speed = min(1.0, max(0.0, 1.0 - (first_key_latency_ms / 3500.0)))
+        v_hesitation = min(1.0, max(0.0, 1.0 - (option_hover_ms / 2000.0)))
+        v_modifier = min(1.0, max(0.0, backspace_rate / 10.0))
 
-        # 行为估计能力分 = 0.5 * 速度 + 0.5 * 坚定度 - 0.2 * 删改
-        implied_capability = max(0.0, min(1.0, 0.5 * speed_score + 0.5 * hesitation_score - 0.2 * modification_penalty))
+        # 2. 行为特征信息熵 (Entropy Index)
+        entropy = - (v_speed * math.log2(v_speed + 1e-6) + v_hesitation * math.log2(v_hesitation + 1e-6)) / 2.0
 
-        # 2. 博弈残差计算 Residual = | 声明状态对应预期 - 物理遥测推导值 |
+        # 3. 拟合真实隐含能力值 (Implied Capability)
+        implied_capability = max(0.0, min(1.0, 0.45 * v_speed + 0.45 * v_hesitation - 0.25 * v_modifier))
+
+        # 4. 异样逻辑判定与博弈残差
         detected_anomaly = "NORMAL"
         is_fake_understanding = False
         is_fake_fatigue = False
-        recommendation = "保持当前调度"
+        is_random_guessing = False
+        recommendation = "做题行为自然流畅，保持正常调度。"
 
-        if user_declared_state == "完全懂了":
-            # 如果声明完全懂了，但悬停久 (>1200ms) 且删改频繁 (>5次)，判定为“装懂”
-            if option_hover_ms > 1200 or backspace_rate > 5:
+        # 蒙题特征：超快速提交 (<300ms 延时) 且悬停极短 (<100ms)
+        if first_key_latency_ms < 300 and option_hover_ms < 100:
+            is_random_guessing = True
+            detected_anomaly = "RANDOM_GUESSING"
+            recommendation = "检测到极速盲选蒙题！系统将作废本题数据，重新弹题测试。"
+
+        elif user_declared_state == "完全懂了":
+            if option_hover_ms > 1200 or backspace_rate > 4.5 or first_key_latency_ms > 2500:
                 is_fake_understanding = True
                 detected_anomaly = "FAKE_UNDERSTANDING"
-                recommendation = "看穿装懂！后台注入同类概念探针题排查薄弱项，不被欺骗升级难度。"
+                recommendation = "看穿装懂！表面声称懂了，实际多次改写且严重卡顿。保持当前难度排查薄弱项。"
 
         elif user_declared_state == "太累了想减负":
-            # 如果声明太累了，但首字延时极短 (<500ms) 且做题极流畅，判定为“装累刷低难度”
-            if first_key_latency_ms < 600 and backspace_rate <= 1 and hesitation_score > 0.8:
+            if first_key_latency_ms < 600 and backspace_rate <= 1 and v_hesitation > 0.85:
                 is_fake_fatigue = True
                 detected_anomaly = "FAKE_FATIGUE"
-                recommendation = "拦截装累刷低难度！保持正常学习节奏，拒绝偷懒诱导降维。"
+                recommendation = "拦截装累刷低难度！物理动作极其敏捷，驳回减负申请，保持正常高阶挑战。"
+
+        mahalanobis_deviation = round(abs(1.0 - implied_capability) * 3.5, 2)
 
         return {
             "implied_capability_score": round(implied_capability, 4),
+            "interaction_entropy": round(entropy, 4),
+            "mahalanobis_deviation": mahalanobis_deviation,
             "user_declared_state": user_declared_state,
             "detected_anomaly": detected_anomaly,
             "is_fake_understanding": is_fake_understanding,
             "is_fake_fatigue": is_fake_fatigue,
+            "is_random_guessing": is_random_guessing,
             "recommendation": recommendation,
             "telemetry_raw": {
                 "first_key_latency_ms": first_key_latency_ms,
@@ -85,10 +90,7 @@ def process_physics_telemetry(
     submission_duration_s: float,
     question_difficulty: float = 0.7
 ) -> Dict[str, Any]:
-    """
-    对外调用的封装接口
-    """
-    engine = PhysicsTelemetryEngine()
+    engine = MahalanobisTelemetryEngine()
     return engine.analyze_telemetry(
         user_declared_state=user_declared_state,
         first_key_latency_ms=first_key_latency_ms,

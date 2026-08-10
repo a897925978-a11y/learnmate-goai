@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-模块 1 OCR 引擎单元测试 (test_ocr_engine.py)
+v2.0 模块 1 OCR 引擎单元测试 (test_ocr_engine.py)
 """
 import unittest
 from backend.app.engine.ocr_engine import analyze_test_paper_ocr, VisionOCREngine
@@ -12,10 +12,10 @@ class TestOCREngine(unittest.TestCase):
         student_id = "STU-1001"
         res = analyze_test_paper_ocr(student_id=student_id, paper_image=b"fake_image_bytes")
         
-        self.assertIsNotNone(res.archive_id)
-        self.assertIn("异分母分数加减法", res.deduction_points)
-        self.assertIn("概念模糊", res.error_attribution["异分母分数加减法"])
-        self.assertGreaterEqual(len(res.initial_weaknesses), 1)
+        self.assertIsNotNone(res["archive_id"])
+        self.assertIn("attribution_details", res)
+        self.assertGreaterEqual(len(res["attribution_details"]), 1)
+        self.assertEqual(res["attribution_details"][0]["knowledge_point"], "异分母分数加减法")
 
 
 if __name__ == "__main__":

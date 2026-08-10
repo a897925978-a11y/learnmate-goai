@@ -1,20 +1,23 @@
 # -*- coding: utf-8 -*-
 """
-「智学伴 LearnMate」通义千问 Qwen-Omni & CosyVoice 原生高保真【全身动漫卡通助手 + 主动介入伴学脑中枢】(voice_engine.py)
+「智学伴 LearnMate」通义千问 Qwen-Omni & Edge/CosyVoice 广播级神经网络【真人拟音 TTS 引擎 + 全身动漫助手】(voice_engine.py)
 
 核心功能：
-1. 🦊 全身动漫卡通助手「智小伴」姿态控制 (Full-Body Avatar: Idle, Proactive, Happy, Thinking, Hug)
-2. ⚡ 主动性伴学引擎 (Proactive Intervention Engine)：
-   - 检测到学生静置/卡顿 > 90 秒 -> 小人主动跳出开腔关怀
-   - 检测到频删涂改 > 3 次 -> 小人主动递上解题降维算法
-   - 22:00 夜间保护 -> 小人主动关灯劝息
-3. 🎙️ 测写+伴读定制完成后自动生成并锁定专属音色与人设
+1. 🎙️ 广播级神经网络 Voice TTS 声学生成器 (Edge-TTS 24kHz 原生 MP3 声场流)：
+   - `cute`: `zh-CN-XiaoxiaoNeural` (+40Hz Pitch) 萌系卡拉小狐狸
+   - `sweet`: `zh-CN-XiaoyiNeural` (+15Hz Pitch) 知心姐姐温柔女声
+   - `boy`: `zh-CN-YunxiNeural` (+0Hz Pitch) 阳光哥哥热血青年男声
+   - `master`: `zh-CN-YunyangNeural` (-25Hz Pitch) 智囊导师沉稳教授低音
+2. 🦊 全身动漫卡通助手「智小伴」姿态与主动介入中枢
 """
 
 import os
 import uuid
 import requests
 import json
+import asyncio
+import base64
+import edge_tts
 from typing import Dict, List, Any, Optional
 from pydantic import BaseModel
 from backend.app.engine.world_model_engine import world_model_engine, get_dashscope_credentials
@@ -45,6 +48,7 @@ class ProactiveCheckResponse(BaseModel):
     trigger_reason: str
     mascot_body_state: FullBodyMascotState
     proactive_speech_text: str
+    audio_data_url: Optional[str] = None
     qwen_pedagogical_tip: str
 
 
@@ -63,13 +67,63 @@ class VoiceChatResponse(BaseModel):
     ai_voice_response_text: str
     mascot_body_state: FullBodyMascotState
     speech_audio_wave_preset: List[float] = [0.35, 0.7, 0.9, 0.4, 0.85, 0.65, 0.95, 0.5, 0.8, 0.3]
+    audio_data_url: Optional[str] = None
     qwen_model_used: str
     vector_memory_id: Optional[str] = None
 
 
+VOICE_PRESETS = {
+    "cute": {"voice": "zh-CN-XiaoxiaoNeural", "pitch": "+40Hz", "rate": "+15%"},
+    "sweet": {"voice": "zh-CN-XiaoyiNeural", "pitch": "+15Hz", "rate": "-5%"},
+    "boy": {"voice": "zh-CN-YunxiNeural", "pitch": "+0Hz", "rate": "+10%"},
+    "master": {"voice": "zh-CN-YunyangNeural", "pitch": "-25Hz", "rate": "-10%"}
+}
+
+
+def generate_neural_tts_audio_data_url(text: str, voice_key: str = "cute") -> Optional[str]:
+    """
+    通过 24kHz 神经网络声学引擎将文本转换为 MP3 Base64 Data URL
+    """
+    preset = VOICE_PRESETS.get(voice_key, VOICE_PRESETS["cute"])
+    try:
+        async def _async_gen():
+            communicate = edge_tts.Communicate(
+                text=text,
+                voice=preset["voice"],
+                pitch=preset["pitch"],
+                rate=preset["rate"]
+            )
+            audio_bytes = b""
+            async for chunk in communicate.stream():
+                if chunk["type"] == "audio":
+                    audio_bytes += chunk["data"]
+            return audio_bytes
+
+        # 在同步环境中安全运行 asyncio
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
+            # 若在异步 Loop 内部，新建独立的 runner 运行
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                audio_bytes = pool.submit(lambda: asyncio.run(_async_gen())).result(timeout=8)
+        else:
+            audio_bytes = asyncio.run(_async_gen())
+
+        if audio_bytes:
+            b64_str = base64.b64encode(audio_bytes).decode('utf-8')
+            return f"data:audio/mp3;base64,{b64_str}"
+    except Exception as e:
+        print("Neural TTS Generation Exception:", e)
+    return None
+
+
 class ProactiveVoiceAssistantEngine:
     """
-    通义千问 Qwen 高保真【全身动漫卡通助手 + 主动介入伴学脑中枢】
+    通义千问 Qwen 高保真【广播级神经网络真人 TTS + 全身动漫助手 + 主动介入伴学脑中枢】
     """
     def check_proactive_intervention(self, req: ProactiveCheckRequest) -> ProactiveCheckResponse:
         """
@@ -78,6 +132,7 @@ class ProactiveVoiceAssistantEngine:
         # 1. 22:00 夜间熄灯守夜
         if req.current_hour >= 22 or req.current_hour < 6:
             speech = "小同学！太晚啦，眼睛需要休息咯！智小伴帮你在老师和家长端做好打卡啦，快去睡觉吧~"
+            audio_url = generate_neural_tts_audio_data_url(speech, req.selected_voice_key)
             return ProactiveCheckResponse(
                 should_intervene=True,
                 trigger_reason="22:00 夜间健康保护",
@@ -90,6 +145,7 @@ class ProactiveVoiceAssistantEngine:
                     glow_color="#f59e0b"
                 ),
                 proactive_speech_text=speech,
+                audio_data_url=audio_url,
                 qwen_pedagogical_tip="护眼防疲劳熄灯保护"
             )
 
@@ -115,6 +171,8 @@ class ProactiveVoiceAssistantEngine:
                 except Exception as e:
                     print("Qwen Proactive API error:", e)
 
+            audio_url = generate_neural_tts_audio_data_url(qwen_tip, req.selected_voice_key)
+
             return ProactiveCheckResponse(
                 should_intervene=True,
                 trigger_reason="静置卡顿 > 90s 心流困境",
@@ -127,12 +185,14 @@ class ProactiveVoiceAssistantEngine:
                     glow_color="#10b981"
                 ),
                 proactive_speech_text=qwen_tip,
+                audio_data_url=audio_url,
                 qwen_pedagogical_tip=f"通义千问主动介入卡顿辅助 ({model_id})"
             )
 
         # 3. 频删涂改 > 3 次 主动介入
         if req.backspace_count >= 3:
             speech = f"检测到你连续涂改答案啦！别气馁，咱们在《{req.interest_anchor}》里找准最小公倍数，通分就轻松解决啦！"
+            audio_url = generate_neural_tts_audio_data_url(speech, req.selected_voice_key)
             return ProactiveCheckResponse(
                 should_intervene=True,
                 trigger_reason="频删涂改 > 3次 难度过高",
@@ -145,6 +205,7 @@ class ProactiveVoiceAssistantEngine:
                     glow_color="#6366f1"
                 ),
                 proactive_speech_text=speech,
+                audio_data_url=audio_url,
                 qwen_pedagogical_tip="降维算法辅导"
             )
 
@@ -153,6 +214,7 @@ class ProactiveVoiceAssistantEngine:
             trigger_reason="心流状态良好",
             mascot_body_state=FullBodyMascotState(avatar_key=req.selected_voice_key, body_action="idle"),
             proactive_speech_text="",
+            audio_data_url=None,
             qwen_pedagogical_tip=""
         )
 
@@ -188,6 +250,9 @@ class ProactiveVoiceAssistantEngine:
             else:
                 ai_response = f"嗷呜~ 收到你的话啦！关于【{req.voice_input_text}】，结合《{req.interest_anchor}》来看，咱们一步步拆解，一定会越来越棒！"
 
+        # 🔑 生成广播级 24kHz 神经网络 MP3 音频 Base64 流
+        audio_url = generate_neural_tts_audio_data_url(ai_response, req.selected_voice_key)
+
         vec_id = f"KEY-BEHAVIOR-{uuid.uuid4().hex[:6].upper()}"
         vector_store.upsert_knowledge_memory(
             doc_id=vec_id,
@@ -205,6 +270,7 @@ class ProactiveVoiceAssistantEngine:
                 avatar_emoji="🦊",
                 body_action="happy_cheer"
             ),
+            audio_data_url=audio_url,
             qwen_model_used=model_id,
             vector_memory_id=vec_id
         )

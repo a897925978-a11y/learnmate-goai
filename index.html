@@ -982,8 +982,8 @@
                 chatBox.appendChild(aiBubble);
                 chatBox.scrollTop = chatBox.scrollHeight;
 
-                // 语音朗读真实 Qwen 回答
-                speakText(aiResponse);
+                // 语音朗读真实 24kHz 原生 MP3 神经网络回答
+                speakText(aiResponse, data.audio_data_url);
             } catch (err) {
                 console.error("Chat Error:", err);
             }
@@ -1146,7 +1146,7 @@
                 if (data.should_intervene) {
                     showProactivePopup(data.trigger_reason, data.proactive_speech_text);
                     setMascotPosture(data.mascot_body_state.body_action);
-                    speakText(data.proactive_speech_text);
+                    speakText(data.proactive_speech_text, data.audio_data_url);
                 }
             } catch (e) {
                 console.error("Proactive Check Error:", e);
@@ -1234,7 +1234,7 @@
                     chatBox.scrollTop = chatBox.scrollHeight;
                     inputField.value = '';
 
-                    speakText(aiResponse);
+                    speakText(aiResponse, data.audio_data_url);
                     toggleVoiceMic();
                 }, 1500);
 
@@ -1297,34 +1297,51 @@
             }
         }
 
-        function speakText(text) {
+        function speakText(text, audioDataUrl = null) {
             // 1. 先播放选定音色的 Web Audio 专属伴学前奏响铃
             playVoiceAudioChime(selectedVoiceKey);
 
+            // 2. 🔑 若后端返回了 24kHz 广播级 MP3 Base64 音频流，直接使用 HTML5 原生 Audio 极速播放真人音质！
+            if (audioDataUrl && audioDataUrl.startsWith("data:audio")) {
+                try {
+                    if (window.speechSynthesis) window.speechSynthesis.cancel();
+                    const audio = new Audio(audioDataUrl);
+                    audio.play().catch(err => {
+                        console.warn("HTML5 Audio AutoPlay blocked, falling back to WebSpeech:", err);
+                        fallbackWebSpeech(text);
+                    });
+                    return;
+                } catch (e) {
+                    console.error("Audio Player Exception:", e);
+                }
+            }
+
+            fallbackWebSpeech(text);
+        }
+
+        function fallbackWebSpeech(text) {
             if ('speechSynthesis' in window) {
                 window.speechSynthesis.cancel();
                 const synth = new SpeechSynthesisUtterance(text);
                 synth.lang = 'zh-CN';
                 
-                // 极具反差的音调 (Pitch) 与语速 (Rate) 强调制，确保声音一听即变！
+                // 极具反差的音调 (Pitch) 与语速 (Rate) 强调制
                 if (selectedVoiceKey === 'cute') {
-                    synth.rate = 1.25;  // 快语速
-                    synth.pitch = 1.75; // 萌系极高极尖萌音
+                    synth.rate = 1.25;  
+                    synth.pitch = 1.75; 
                 } else if (selectedVoiceKey === 'sweet') {
-                    synth.rate = 0.92;  // 舒缓语速
-                    synth.pitch = 1.30; // 甜美高音
+                    synth.rate = 0.92;  
+                    synth.pitch = 1.30; 
                 } else if (selectedVoiceKey === 'boy') {
-                    synth.rate = 1.15;  // 阳光快语速
-                    synth.pitch = 0.90; // 青年男高音
+                    synth.rate = 1.15;  
+                    synth.pitch = 0.90; 
                 } else {
-                    synth.rate = 0.85;  // 沉稳慢语速
-                    synth.pitch = 0.55; // 极低沉教授低音
+                    synth.rate = 0.85;  
+                    synth.pitch = 0.55; 
                 }
 
-                // 强制匹配多音色
                 const voices = window.speechSynthesis.getVoices();
                 if (voices && voices.length > 0) {
-                    // 寻找中文或不同音色引擎绑定
                     const zhVoices = voices.filter(v => v.lang.includes('zh') || v.lang.includes('CN'));
                     if (zhVoices.length > 0) {
                         if (selectedVoiceKey === 'cute' && zhVoices[0]) synth.voice = zhVoices[0];

@@ -16,6 +16,7 @@ import uuid
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 from pydantic import BaseModel, Field
+from backend.app.engine.textin_ocr import textin_engine
 
 
 # ----------------------------------------------------------------------

@@ -574,9 +574,10 @@
                             💡 找到关键啦！这就是“概念模糊”。在 Minecraft 里，不同大小的能量块是不能直接拼在一起的！咱们必须先找到 3 和 4 的最小公倍数 12，把它通分变成相同的方块！
                         </div>
                     </div>
-                    <div class="chat-input-bar">
-                        <input type="text" class="chat-input" id="chat-input-field" placeholder="输入你想问的数学概念或题目..." onkeypress="handleChatKeyPress(event)">
-                        <button class="btn btn-primary" style="width: auto;" onclick="sendChatMessage()">发送 🚀</button>
+                    <div class="chat-input-bar" style="display:flex; gap:0.5rem; align-items:center;">
+                        <input type="text" class="chat-input" id="chat-input-field" placeholder="输入你想问的概念，或点击 🎤 麦克风按键说话..." onkeypress="handleChatKeyPress(event)" style="flex:1;">
+                        <button class="btn" id="mic-toggle-btn" style="width:auto; padding:0.6rem 1rem; background:rgba(255,255,255,0.08); border:1px solid var(--border-color); color:#fff; border-radius:12px; font-size:1.2rem; cursor:pointer;" onclick="toggleVoiceMic()" title="开启/关闭麦克风语音录制">🎤</button>
+                        <button class="btn btn-primary" style="width:auto; padding:0.6rem 1.25rem;" onclick="sendChatMessage()">发送 🚀</button>
                     </div>
                 </div>
 
@@ -834,7 +835,7 @@
     </div>
 
     <!-- 🦊 桌面【完整全身 2D/3D 动漫卡通伴读助手「智小伴」】Widget -->
-    <div id="floating-cartoon-mascot-box" style="position:fixed; bottom:16px; right:16px; z-index:999; display:flex; flex-direction:column; align-items:center;">
+    <div id="floating-cartoon-mascot-box" style="position:fixed; bottom:12px; right:12px; z-index:999; display:flex; flex-direction:column; align-items:center; transform:scale(0.82); transform-origin:bottom right;">
         
         <!-- 💡 通义千问脑中枢主动介入提示气泡 (Proactive Speech Popup) -->
         <div class="proactive-speech-popup" id="proactive-speech-popup">

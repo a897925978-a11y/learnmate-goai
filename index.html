@@ -975,9 +975,10 @@
                 const bubbleEl = document.getElementById('mascot-speech-bubble');
                 if (bubbleEl) bubbleEl.innerText = aiResponse;
 
+                const emoji = (data.mascot_body_state && data.mascot_body_state.avatar_emoji) ? data.mascot_body_state.avatar_emoji : "🦊";
                 const aiBubble = document.createElement('div');
                 aiBubble.className = 'msg-bubble msg-ai';
-                aiBubble.innerText = `${data.qwen_voice_model.avatar_emoji} [智小伴 · ${data.world_model_used}] ${aiResponse}`;
+                aiBubble.innerText = `${emoji} [智小伴 · ${data.qwen_model_used || "阿里云千问"}] ${aiResponse}`;
                 chatBox.appendChild(aiBubble);
                 chatBox.scrollTop = chatBox.scrollHeight;
 
@@ -1225,9 +1226,10 @@
                     userB.innerText = `🎙️ [语音/输入] ${inputText}`;
                     chatBox.appendChild(userB);
 
+                    const emoji = (data.mascot_body_state && data.mascot_body_state.avatar_emoji) ? data.mascot_body_state.avatar_emoji : "🦊";
                     const aiB = document.createElement('div');
                     aiB.className = 'msg-bubble msg-ai';
-                    aiB.innerText = `${data.qwen_voice_model.avatar_emoji} [智小伴 · ${data.world_model_used}] ${aiResponse}`;
+                    aiB.innerText = `${emoji} [智小伴 · ${data.qwen_model_used || "阿里云千问"}] ${aiResponse}`;
                     chatBox.appendChild(aiB);
                     chatBox.scrollTop = chatBox.scrollHeight;
                     inputField.value = '';

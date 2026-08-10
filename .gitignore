@@ -1,0 +1,39 @@
+# ==========================================
+# 智学伴 (LearnMate) 大赛协作仓库 .gitignore
+# 严禁将敏感 API Key、配置文件、日志及私密算控原案提交至仓库
+# ==========================================
+
+# 1. 敏感凭据与配置文件隔离
+.env
+.env.local
+*.env
+*secret*
+*credential*
+feishu_config.json
+mcp_config.json
+*.key
+*.pem
+
+# 2. 临时测试脚手架与日志隔离
+scratch/
+*.log
+*.sqlite3
+*.db
+
+# 3. Python 编译与虚拟环境
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+ENV/
+build/
+dist/
+*.egg-info/
+
+# 4. 系统与 IDE 文件
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

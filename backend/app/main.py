@@ -63,8 +63,16 @@ def read_root():
     index_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "index.html")
     if os.path.exists(index_path):
         with open(index_path, "r", encoding="utf-8") as f:
-            return f.read()
-    return "<h1>智学伴 LearnMate 双端现象级推送服务运行中...</h1>"
+            content = f.read()
+            return HTMLResponse(
+                content=content,
+                headers={
+                    "Cache-Control": "no-cache, no-store, must-revalidate",
+                    "Pragma": "no-cache",
+                    "Expires": "0"
+                }
+            )
+    return HTMLResponse(content="<h1>智学伴 LearnMate 双端现象级推送服务运行中...</h1>")
 
 
 # ----------------------------------------------------------------------

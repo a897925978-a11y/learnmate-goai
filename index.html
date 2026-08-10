@@ -1386,6 +1386,14 @@
         function sendWebSocketFrame(payload) {
             if (voiceWebSocket && voiceWebSocket.readyState === WebSocket.OPEN) {
                 voiceWebSocket.send(JSON.stringify(payload));
+            } else {
+                console.warn("WebSocket 连接未就绪，尝试自动重连并加入补发队列...");
+                initVoiceWebSocket();
+                setTimeout(() => {
+                    if (voiceWebSocket && voiceWebSocket.readyState === WebSocket.OPEN) {
+                        voiceWebSocket.send(JSON.stringify(payload));
+                    }
+                }, 800);
             }
         }
 
@@ -1394,6 +1402,9 @@
             try {
                 const AudioCtx = window.AudioContext || window.webkitAudioContext;
                 vadAudioContext = new AudioCtx();
+                if (vadAudioContext.state === 'suspended') {
+                    vadAudioContext.resume().catch(() => {});
+                }
                 const source = vadAudioContext.createMediaStreamSource(stream);
                 vadAnalyserNode = vadAudioContext.createAnalyser();
                 vadAnalyserNode.fftSize = 512;
@@ -1448,9 +1459,14 @@
             initVoiceWebSocket();
         });
 
-        function startGeminiLiveContinuousCall() {
+        async function startGeminiLiveContinuousCall() {
             isContinuousCallActive = true;
             
+            // 🔓 解锁 Chrome Autoplay Policy / AudioContext 挂起状态
+            if (vadAudioContext && vadAudioContext.state === 'suspended') {
+                try { await vadAudioContext.resume(); } catch(e){}
+            }
+
             // 🟢 保持原界面（零 UI 跳页），仅更新 Header 状态指示灯
             const badgeDot = document.querySelector('.status-dot');
             if (badgeDot) badgeDot.style.background = '#10b981';
@@ -1645,12 +1661,30 @@
             if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
                 navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
                     startWebAudioVAD(stream); // 🎧 启动 Web Audio API RMS VAD 能量检测器与打断中枢
-                    mediaRecorderInstance = new MediaRecorder(stream);
+
+                    // 🎙️ 增加 MimeType 兼容性检测与多浏览器降级逻辑
+                    let selectedMimeType = 'audio/webm';
+                    if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported) {
+                        if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+                            selectedMimeType = 'audio/webm;codecs=opus';
+                        } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+                            selectedMimeType = 'audio/webm';
+                        } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+                            selectedMimeType = 'audio/mp4';
+                        }
+                    }
+
+                    try {
+                        mediaRecorderInstance = new MediaRecorder(stream, { mimeType: selectedMimeType });
+                    } catch(e) {
+                        mediaRecorderInstance = new MediaRecorder(stream);
+                    }
+
                     mediaRecorderInstance.ondataavailable = e => {
                         if (e.data.size > 0) recordedAudioChunks.push(e.data);
                     };
                     mediaRecorderInstance.onstop = () => {
-                        const blob = new Blob(recordedAudioChunks, { type: 'audio/webm' });
+                        const blob = new Blob(recordedAudioChunks, { type: selectedMimeType });
                         
                         // 🛡️ 防误触门限：如果音频低于 300 字节（录音极其轻微/小于0.05秒），才忽略发送！
                         if (blob.size < 300) {

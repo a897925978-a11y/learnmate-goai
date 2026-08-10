@@ -1423,6 +1423,13 @@
                     };
                     mediaRecorderInstance.onstop = () => {
                         const blob = new Blob(recordedAudioChunks, { type: 'audio/webm' });
+                        
+                        // 🛡️ 防误触门限：如果音频低于 3KB（误触麦克风/按键噪声/录音小于 0.5 秒），绝不自动发送！
+                        if (blob.size < 3000) {
+                            console.log("Audio blob too small, ignoring auto-send:", blob.size);
+                            return;
+                        }
+
                         activeAudioBlobUrl = URL.createObjectURL(blob);
                         
                         const reader = new FileReader();

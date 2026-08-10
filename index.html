@@ -1314,12 +1314,12 @@
 
         function initVoiceWebSocket() {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${protocol}//${window.location.host}/ws/voice/live`;
+            const wsUrl = `${protocol}//${window.location.host}/ws/voice/omni_live`;
             
             try {
                 voiceWebSocket = new WebSocket(wsUrl);
                 voiceWebSocket.onopen = () => {
-                    console.log("⚡ Gemini Live 原生流式 WebSocket 通道已建立 (ws://voice/live)");
+                    console.log("⚡ Qwen-Omni Realtime WSS 通道已建立 (ws://voice/omni_live)");
                 };
                 voiceWebSocket.onmessage = (event) => {
                     try {
@@ -1330,41 +1330,43 @@
                             if (chatBox) {
                                 const userBubble = document.createElement('div');
                                 userBubble.className = 'msg-bubble msg-user';
-                                userBubble.innerText = `🎙️ [Gemini Live 输入] “${msg.text}”`;
+                                userBubble.innerText = `🎙️ [Qwen-Omni 输入] “${msg.text}”`;
                                 chatBox.appendChild(userBubble);
                                 chatBox.scrollTop = chatBox.scrollHeight;
                             }
-                        } else if (msg.type === 'ai_text_chunk') {
-                            if (chatBox) {
+                        } else if (msg.type === 'response.text.delta' || msg.type === 'ai_text_chunk') {
+                            const textVal = msg.delta || msg.text || "";
+                            if (chatBox && textVal) {
                                 const aiBubble = document.createElement('div');
                                 aiBubble.className = 'msg-bubble msg-ai';
-                                aiBubble.innerText = `🦊 [智小伴 · Gemini Live] ${msg.text}`;
+                                aiBubble.innerText = `🦊 [智小伴 · Qwen-Omni] ${textVal}`;
                                 chatBox.appendChild(aiBubble);
                                 chatBox.scrollTop = chatBox.scrollHeight;
                             }
 
                             const bubbleEl = document.getElementById('mascot-speech-bubble');
-                            if (bubbleEl) bubbleEl.innerText = msg.text;
-                        } else if (msg.type === 'audio_chunk') {
-                            if (msg.audio_b64) {
-                                speakText(msg.text || "", msg.audio_b64);
+                            if (bubbleEl && textVal) bubbleEl.innerText = textVal;
+                        } else if (msg.type === 'response.audio.delta' || msg.type === 'audio_chunk') {
+                            const audioData = msg.audio_b64 || msg.delta;
+                            if (audioData) {
+                                speakText(msg.text || "", audioData);
                             }
-                        } else if (msg.type === 'interrupted') {
-                            console.log("⚡ 接收到 Gemini Live < 50ms 瞬间打断确认！");
+                        } else if (msg.type === 'interrupted' || msg.type === 'input_audio_buffer.speech_started') {
+                            console.log("⚡ 接收到 Qwen-Omni < 50ms Server VAD 打断确认！");
                             interruptAISpeech();
                         }
                     } catch(e) {
-                        console.error("WS Live Frame Parse Error:", e);
+                        console.error("WS Omni Live Frame Parse Error:", e);
                     }
                 };
                 voiceWebSocket.onclose = () => {
                     setTimeout(initVoiceWebSocket, 3500);
                 };
                 voiceWebSocket.onerror = (err) => {
-                    console.error("WebSocket live stream error:", err);
+                    console.error("WebSocket omni live stream error:", err);
                 };
             } catch(e) {
-                console.error("Init WebSocket Live Error:", e);
+                console.error("Init WebSocket Omni Live Error:", e);
             }
         }
 
@@ -1400,7 +1402,7 @@
                         // ⚡ 检查打断：若 AI 正在播音，200ms 内立刻瞬间中断！
                         if (isAISpeaking) {
                             interruptAISpeech();
-                            sendWebSocketFrame({ type: "interrupt" });
+                            sendWebSocketFrame({ type: "input_audio_buffer.speech_started" });
                         }
 
                         if (!isVadSpeaking) {
@@ -1440,7 +1442,7 @@
             const badgeDot = document.querySelector('.status-dot');
             if (badgeDot) badgeDot.style.background = '#10b981';
             const badgeText = document.querySelector('.status-badge span:last-child');
-            if (badgeText) badgeText.innerText = "🟢 Gemini Live 300ms 实时伴学中";
+            if (badgeText) badgeText.innerText = "🟢 Qwen-Omni 300ms 实时伴学中";
 
             const btn = document.getElementById('floating-call-btn');
             if (btn) {
@@ -1462,7 +1464,7 @@
 
             // 招手迎接姿态
             setMascotPosture('proactive_jump');
-            const introMsg = "🟢 Gemini Live 300ms 实时伴学模式已激活！支持多语种流式对讲，请直接说话！";
+            const introMsg = "🟢 Qwen-Omni 300ms 实时伴学模式已激活！通义千问原生音到音对讲，请直接说话！";
             speakText(introMsg);
 
             const chatBox = document.getElementById('chat-box');
@@ -1567,7 +1569,7 @@
 
             rec.onresult = (event) => {
                 let transcript = '';
-                for (let i = event.resultIndex; i < event.results.length; i++) {
+                for (let i = 0; i < event.results.length; i++) {
                     transcript += event.results[i][0].transcript;
                 }
                 const inputField = document.getElementById('chat-input-field');

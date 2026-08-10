@@ -1,13 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-「智学伴 LearnMate」全双工实时流式 AI 语音智能体核心引擎 (voice_engine.py)
+「智学伴 LearnMate」全双工实时多语言 AI 语音智能体核心引擎 (voice_engine.py)
 
 特性：
-1. 全双工 WebSocket 流式对讲中枢 (process_websocket_stream_session)：支持超低延迟 AudioChunk 实时送达。
-2. 真实多语言语音识别 (Multilingual STT)：原生支持中、英、日、德、法、西、俄、韩、阿等数十种语言。
-3. 口语化精炼回复：LLM 强制限制在 1-2 句口语短句 (15-30字以内)，极大提升交互流畅感与交谈心流。
-4. 24kHz 神经网络多语言 TTS + URL 内存极速缓存。
-5. 反造假铁律：真实音频转录，绝无虚假数据包装！
+1. 真实多语言语音解包 (Multilingual ASR)：通过 ffmpeg + pydub + SpeechRecognition/Gemini 解构 WebM 音频。
+2. 彻底拒绝伪造与硬编码假回复：清除任何 "Hello!" 假默认值！
+3. 多语言大模型理解：自动识别用户 spoken language，并用同种语言 1-2 句口语短句回答 (15-30字)。
+4. 24kHz 神经网络多语言 TTS + 内存极速缓存。
 """
 
 import os
@@ -23,6 +22,20 @@ from typing import Dict, List, Any, Optional
 from pydantic import BaseModel
 from backend.app.engine.world_model_engine import world_model_engine, get_dashscope_credentials
 from backend.app.engine.vector_store import vector_store
+
+# 🛠️ 显式指定 ffmpeg 路径 (解决 Windows 下 pydub 无法解码 webm 频出 None 的问题)
+try:
+    from pydub import AudioSegment
+    ffmpeg_paths = [
+        r"C:\ffmpeg-7.1-essentials_build\bin\ffmpeg.exe",
+        r"C:\Users\89792\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-8.1.1-full_build\bin\ffmpeg.exe"
+    ]
+    for fp in ffmpeg_paths:
+        if os.path.exists(fp):
+            AudioSegment.converter = fp
+            break
+except Exception as e:
+    print("Pydub ffmpeg init warning:", e)
 
 
 class FullBodyMascotState(BaseModel):
@@ -86,9 +99,7 @@ VOICE_PRESETS = {
     "es-ES": {"cute": "es-ES-ElviraNeural", "sweet": "es-ES-AbrilNeural", "boy": "es-ES-AlvaroNeural", "master": "es-ES-ArnauNeural"},
     "ru-RU": {"cute": "ru-RU-SvetlanaNeural", "sweet": "ru-RU-DariyaNeural", "boy": "ru-RU-DmitryNeural", "master": "ru-RU-DmitryNeural"},
     "ko-KR": {"cute": "ko-KR-SunHiNeural", "sweet": "ko-KR-JiMinNeural", "boy": "ko-KR-InJoonNeural", "master": "ko-KR-BongJinNeural"},
-    "ar-SA": {"cute": "ar-SA-ZariyahNeural", "sweet": "ar-SA-ZariyahNeural", "boy": "ar-SA-HamedNeural", "master": "ar-SA-HamedNeural"},
-    "pt-BR": {"cute": "pt-BR-FranciscaNeural", "sweet": "pt-BR-ThalitaNeural", "boy": "pt-BR-AntonioNeural", "master": "pt-BR-HumbertoNeural"},
-    "it-IT": {"cute": "it-IT-ElsaNeural", "sweet": "it-IT-IsabellaNeural", "boy": "it-IT-DiegoNeural", "master": "it-IT-GiuseppeNeural"}
+    "ar-SA": {"cute": "ar-SA-ZariyahNeural", "sweet": "ar-SA-ZariyahNeural", "boy": "ar-SA-HamedNeural", "master": "ar-SA-HamedNeural"}
 }
 
 # 🎙️ TTS 内存极速缓存 (URL Cache)
@@ -114,23 +125,19 @@ def detect_language_code(text: str) -> str:
     if not clean:
         return "zh-CN"
 
-    # 1. 日语（包含平假名/片假名）
+    # 1. 日语
     if re.search(r'[\u3040-\u309F\u30A0-\u30FF]', clean):
         return "ja-JP"
-    
     # 2. 韩语
     if re.search(r'[\uAC00-\uD7AF\u1100-\u11FF]', clean):
         return "ko-KR"
-
-    # 3. 俄语（西里尔字母）
+    # 3. 俄语
     if re.search(r'[\u0400-\u04FF]', clean):
         return "ru-RU"
-
     # 4. 阿拉伯语
     if re.search(r'[\u0600-\u06FF]', clean):
         return "ar-SA"
 
-    # 5. 德语/法语/西班牙语特征检测
     lower = clean.lower()
     if re.search(r'[ßäöü]', lower) or re.search(r'\b(guten|tag|danke|hallo|wie|ist|das)\b', lower):
         return "de-DE"
@@ -139,11 +146,10 @@ def detect_language_code(text: str) -> str:
     if re.search(r'[ñáíóú¡¿]', lower) or re.search(r'\b(hola|gracias|buenos|dias|como|esta)\b', lower):
         return "es-ES"
 
-    # 6. 英语 (纯拉丁字母无中文)
+    # 英语 (纯拉丁字母无中文)
     if re.search(r'[a-zA-Z]', clean) and not re.search(r'[\u4e00-\u9fa5]', clean):
         return "en-US"
 
-    # 默认中文
     return "zh-CN"
 
 
@@ -155,7 +161,7 @@ def select_neural_voice_name(lang_code: str, voice_style: str = "cute") -> str:
 def generate_neural_tts_audio_data_url(text: str, voice_key: str = "cute") -> Optional[str]:
     clean_text = strip_emojis_for_tts(text)
     if not clean_text:
-        clean_text = "Hello!"
+        return None
 
     lang_code = detect_language_code(clean_text)
     voice_name = select_neural_voice_name(lang_code, voice_key)
@@ -202,7 +208,8 @@ def generate_neural_tts_audio_data_url(text: str, voice_key: str = "cute") -> Op
 
 def transcribe_audio_b64(audio_b64: str) -> Optional[str]:
     """
-    🎙️ 语音 Base64 极速解包与多语言转录引擎
+    🎙️ 真实 WebM 音频解包与 ASR 转录引擎
+    严禁伪造！实打实解码声音二进制
     """
     if not audio_b64:
         return None
@@ -212,18 +219,64 @@ def transcribe_audio_b64(audio_b64: str) -> Optional[str]:
             audio_b64 = audio_b64.split(",")[1]
 
         raw_audio_bytes = base64.b64decode(audio_b64)
-        if len(raw_audio_bytes) < 100:
+        if len(raw_audio_bytes) < 300:
             return None
 
-        api_key, base_url, model_id = get_dashscope_credentials()
-        if api_key and not api_key.startswith("your_"):
+        # 1. 使用 Gemini Multimodal Audio 原生音到文转录 (若配置 Key)
+        google_api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+        if google_api_key:
             try:
-                with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp:
-                    tmp.write(raw_audio_bytes)
-                    tmp_path = tmp.name
-                os.remove(tmp_path)
+                from google import genai
+                from google.genai import types
+                client = genai.Client(api_key=google_api_key)
+                prompt = (
+                    "Listen to this audio carefully. Transcribe the exact spoken words into text.\n"
+                    "RULES:\n"
+                    "1. Output ONLY the plain transcribed text in the exact language spoken.\n"
+                    "2. Do NOT add any commentary or formatting.\n"
+                    "3. If silent, output nothing."
+                )
+                part = types.Part.from_bytes(data=raw_audio_bytes, mime_type="audio/webm")
+                res = client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=[part, prompt]
+                )
+                if res.text and res.text.strip():
+                    return res.text.strip()
             except Exception as e:
-                print("ASR API attempt warning:", e)
+                print("Gemini Audio ASR Exception:", e)
+
+        # 2. 本地 SpeechRecognition + pydub (ffmpeg) 解码 WebM -> WAV -> ASR
+        try:
+            import speech_recognition as sr
+            from pydub import AudioSegment
+
+            with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp_in:
+                tmp_in.write(raw_audio_bytes)
+                tmp_in_path = tmp_in.name
+
+            wav_path = tmp_in_path + ".wav"
+            audio_seg = AudioSegment.from_file(tmp_in_path)
+            audio_seg.export(wav_path, format="wav")
+
+            r = sr.Recognizer()
+            with sr.AudioFile(wav_path) as source:
+                audio_data = r.record(source)
+                # 尝试多语言识别 (中文/英文)
+                try:
+                    text = r.recognize_google(audio_data, language="zh-CN")
+                except Exception:
+                    text = r.recognize_google(audio_data, language="en-US")
+
+                if text and text.strip():
+                    os.remove(tmp_in_path)
+                    os.remove(wav_path)
+                    return text.strip()
+
+            if os.path.exists(tmp_in_path): os.remove(tmp_in_path)
+            if os.path.exists(wav_path): os.remove(wav_path)
+        except Exception as e:
+            print("SpeechRecognition ASR Exception:", e)
 
     except Exception as e:
         print("Audio B64 Decode Error:", e)
@@ -307,15 +360,30 @@ class AcademicAgentVoiceEngine:
         # 1. 真实提取/转录输入文本
         input_text = req.voice_input_text.strip()
         
+        # 若只上传了 Base64 语音，进行真实 ASR 识别
         if not input_text and req.voice_audio_b64:
             transcribed = transcribe_audio_b64(req.voice_audio_b64)
             if transcribed:
                 input_text = transcribed
-            else:
-                input_text = "Hello!"
 
+        # 🔑 反造假铁律：若 ASR 识别为空或未听到有效声音，诚实告知，严禁伪造 "Hello!"
         if not input_text:
-            input_text = "Hello! 你好！"
+            ai_response = "抱歉主帅，我收到了一段语音，但声音较轻或未录入有效说话。请您试着在大声说一次，或者打字告诉我哦！"
+            audio_url = generate_neural_tts_audio_data_url(ai_response, req.selected_voice_key)
+            return VoiceChatResponse(
+                session_id=session_id,
+                student_input_transcript="（声音未检测到）",
+                ai_voice_response_text=ai_response,
+                mascot_body_state=FullBodyMascotState(
+                    avatar_key=req.selected_voice_key,
+                    avatar_name="智小伴",
+                    avatar_emoji="🦊",
+                    body_action="thinking"
+                ),
+                audio_data_url=audio_url,
+                qwen_model_used=model_id,
+                detected_language="zh-CN"
+            )
 
         # 2. 智能识别输入语言
         detected_lang = detect_language_code(input_text)
@@ -325,11 +393,14 @@ class AcademicAgentVoiceEngine:
             try:
                 headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
                 system_prompt = (
-                    "You are 'ZhiXiaoban' (智小伴), a real-time conversational AI Voice Partner.\n"
+                    "You are 'ZhiXiaoban' (智小伴), a real-time AI Voice Partner and Academic Companion.\n"
                     "RULES:\n"
-                    "1. ACCURATE LANGUAGE MATCH: Respond in the EXACT SAME LANGUAGE as the user's input.\n"
-                    "2. SHORT SPOKEN RESPONSES: Keep responses strictly 1-2 spoken sentences (15-30 words max). Talk like a human friend!\n"
-                    "3. NO REPETITIVE TEMPLATES: Be genuinely helpful and engage naturally."
+                    "1. EXACT LANGUAGE MATCH: Always reply in the EXACT SAME LANGUAGE as the student's question.\n"
+                    "   - Chinese question -> Answer in warm, natural Chinese.\n"
+                    "   - English question -> Answer in natural, friendly English.\n"
+                    "   - Japanese question -> Answer in natural Japanese.\n"
+                    "2. DIRECT & CONCISE: Reply strictly in 1 to 2 spoken sentences (15-30 words max). Talk naturally like a human peer!\n"
+                    "3. ACCURATE ANSWER: Directly answer the student's question with domain accuracy. No repetitive intros."
                 )
                 payload = {
                     "model": model_id,
@@ -337,19 +408,19 @@ class AcademicAgentVoiceEngine:
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": input_text}
                     ],
-                    "max_tokens": 100,
+                    "max_tokens": 120,
                     "temperature": 0.7
                 }
-                res = requests.post(f"{base_url.rstrip('/')}/chat/completions", headers=headers, json=payload, timeout=5)
+                res = requests.post(f"{base_url.rstrip('/')}/chat/completions", headers=headers, json=payload, timeout=6)
                 if res.status_code == 200:
                     ai_response = res.json()["choices"][0]["message"]["content"].strip()
             except Exception as e:
                 print("Multilingual LLM Call Error:", e)
 
-        # 4. 多语言高质量口语保底
+        # 4. 零造假保底：根据真实识别的文本进行地道口语回复
         if not ai_response:
             if detected_lang == "en-US":
-                ai_response = f"I'd love to explore '{input_text}' with you! What part should we start with?"
+                ai_response = f"I'd love to help you with '{input_text}'! Let's work on it together."
             elif detected_lang == "ja-JP":
                 ai_response = f"「{input_text}」ですね！一緒に楽しく学びましょう！"
             elif detected_lang == "de-DE":
@@ -358,10 +429,6 @@ class AcademicAgentVoiceEngine:
                 ai_response = f"Avec plaisir! Parlons de '{input_text}' ensemble."
             elif detected_lang == "es-ES":
                 ai_response = f"¡Con mucho gusto! Hablemos sobre '{input_text}' juntos."
-            elif detected_lang == "ru-RU":
-                ai_response = f"С удовольствием! Давайте обсудим '{input_text}' прямо сейчас."
-            elif detected_lang == "ko-KR":
-                ai_response = f"좋아요! '{input_text}'에 대해 вместе 공부해 봐요!"
             else:
                 ai_response = f"没问题！关于“{input_text}”，智小伴立刻和你一起探讨！"
 

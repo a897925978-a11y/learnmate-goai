@@ -256,3 +256,19 @@ async def websocket_gemini_live_endpoint(websocket: WebSocket):
     await gemini_live_engine.handle_live_websocket(websocket)
 
 
+# ----------------------------------------------------------------------
+# 🟢 Qwen-Omni 原生 Realtime WSS 实时语音 API (/ws/voice/omni_live)
+# ----------------------------------------------------------------------
+from backend.app.engine.qwen_omni_realtime_engine import qwen_omni_realtime_engine
+
+@app.websocket("/ws/voice/omni_live")
+async def websocket_qwen_omni_live_endpoint(websocket: WebSocket):
+    """
+    🟢 Qwen-Omni 原生 Realtime WebSocket 实时语音 API (/ws/voice/omni_live)
+    基于 DashScope Realtime WSS 协议 (wss://dashscope.aliyuncs.com/api-ws/v1/realtime)
+    支持 input_audio_buffer.append <-> response.audio.delta 原生 Audio-to-Audio 对讲与 < 50ms Server VAD 打断
+    """
+    await qwen_omni_realtime_engine.handle_omni_websocket(websocket)
+
+
+

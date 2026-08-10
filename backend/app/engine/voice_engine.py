@@ -80,15 +80,37 @@ VOICE_PRESETS = {
 }
 
 
+import re
+
+def strip_emojis_for_tts(text: str) -> str:
+    """
+    算法安全清洗：算法级剥离所有 Emoji 表情包与特殊朗读干扰符，防止 TTS 念出“狐狸”、“女人”等表情说明
+    """
+    if not text:
+        return ""
+    emoji_pattern = re.compile(
+        "[\U00010000-\U0010ffff\u2600-\u26FF\u2700-\u27BF\u1F60-\u1F64\u1F30-\u1F5F\u1F68-\u1F6F]+",
+        flags=re.UNICODE
+    )
+    cleaned = emoji_pattern.sub("", text)
+    cleaned = re.sub(r"\[.*?\]", "", cleaned)
+    cleaned = re.sub(r"【.*?】", "", cleaned)
+    return cleaned.strip()
+
+
 def generate_neural_tts_audio_data_url(text: str, voice_key: str = "cute") -> Optional[str]:
     """
-    通过 24kHz 神经网络声学引擎将文本转换为 MP3 Base64 Data URL
+    通过 24kHz 神经网络声学引擎将文本转换为 MP3 Base64 Data URL (已包含算法级 Emoji 过滤)
     """
+    clean_text = strip_emojis_for_tts(text)
+    if not clean_text:
+        clean_text = "你好小同学！"
+
     preset = VOICE_PRESETS.get(voice_key, VOICE_PRESETS["cute"])
     try:
         async def _async_gen():
             communicate = edge_tts.Communicate(
-                text=text,
+                text=clean_text,
                 voice=preset["voice"],
                 pitch=preset["pitch"],
                 rate=preset["rate"]

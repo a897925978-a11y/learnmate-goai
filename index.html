@@ -1322,7 +1322,13 @@
         function fallbackWebSpeech(text) {
             if ('speechSynthesis' in window) {
                 window.speechSynthesis.cancel();
-                const synth = new SpeechSynthesisUtterance(text);
+                
+                // 算法清洗：剥离 Emoji 与中括号干扰符号，防止机械语音念出表情说明
+                let cleanText = text.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '');
+                cleanText = cleanText.replace(/\[.*?\]/g, '').replace(/【.*?】/g, '').trim();
+                if (!cleanText) cleanText = "你好小同学！";
+
+                const synth = new SpeechSynthesisUtterance(cleanText);
                 synth.lang = 'zh-CN';
                 
                 // 极具反差的音调 (Pitch) 与语速 (Rate) 强调制

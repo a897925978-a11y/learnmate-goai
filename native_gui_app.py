@@ -6,6 +6,14 @@
 
 import sys
 import os
+
+# 🔑 最优先: 加载 .env 环境变量 (API Keys 等) — 必须在所有模块导入之前
+try:
+    from dotenv import load_dotenv
+    _project_root = os.path.dirname(os.path.abspath(__file__))
+    load_dotenv(os.path.join(_project_root, ".env"))
+except ImportError:
+    pass
 import time
 import math
 import random

@@ -146,15 +146,31 @@ class RealtimeVoiceClient:
             class _RealtimeCallback(OmniRealtimeCallback):
                 """DashScope Realtime 回调处理器"""
 
-                def on_event(self, event_type: str, data):
-                    """处理所有服务端事件"""
+                def on_open(self):
+                    """WebSocket 连接打开"""
+                    print("[RealtimeVoiceClient] WebSocket opened")
+
+                def on_close(self, close_status_code, close_msg):
+                    """WebSocket 连接关闭"""
+                    print(f"[RealtimeVoiceClient] WebSocket closed: {close_status_code} {close_msg}")
+                    client_ref._connected = False
+                    client_ref.on_state_change("disconnected")
+
+                def on_event(self, message):
+                    """处理所有服务端事件 — SDK 可能传入 dict 或 JSON str"""
                     try:
-                        if isinstance(data, dict):
-                            client_ref._handle_event(event_type, data)
+                        if isinstance(message, dict):
+                            data = message
+                        elif isinstance(message, str):
+                            import json as _json
+                            data = _json.loads(message)
                         else:
-                            client_ref._handle_event(event_type, {"raw": data})
+                            print(f"[RealtimeVoiceClient] Unknown message type: {type(message)}")
+                            return
+                        event_type = data.get("type", "unknown")
+                        client_ref._handle_event(event_type, data)
                     except Exception as e:
-                        print(f"[RealtimeVoiceClient] Callback error in {event_type}: {e}")
+                        print(f"[RealtimeVoiceClient] Callback error: {e}")
                         traceback.print_exc()
 
             callback = _RealtimeCallback()
@@ -174,6 +190,8 @@ class RealtimeVoiceClient:
                 enable_turn_detection=True,
                 # 输出模态: 同时输出音频和文字 (使用 SDK 枚举)
                 output_modalities=[MultiModality.AUDIO, MultiModality.TEXT],
+                # 语音音色 (Tina = qwen3.5-omni-flash-realtime 默认音色)
+                voice="Tina",
                 # 注入 System Prompt
                 instructions=self._system_prompt,
             )
@@ -300,6 +318,8 @@ class RealtimeVoiceClient:
         """
         实时推送一帧麦克风 PCM 音频到服务端
 
+        SDK 的 append_audio() 需要 Base64 编码的字符串。
+
         Args:
             pcm_bytes: 16kHz 16bit Mono PCM 原始字节
         """
@@ -307,7 +327,8 @@ class RealtimeVoiceClient:
             return
 
         try:
-            self._conversation.send_audio_frame(pcm_bytes)
+            audio_b64 = base64.b64encode(pcm_bytes).decode('ascii')
+            self._conversation.append_audio(audio_b64)
         except Exception as e:
             print(f"[RealtimeVoiceClient] Send audio error: {e}")
 

@@ -44,6 +44,10 @@ except Exception:
 import io
 import wave
 import base64
+import queue
+
+# 实时语音客户端 (DashScope Qwen-Omni Realtime)
+from realtime_voice_client import RealtimeVoiceClient, RealtimeAudioPlayer
 
 def pcm_to_wav_base64(pcm_data: bytes, sample_rate: int = 16000, channels: int = 1) -> str:
     """将原生 16kHz PCM 二进制音频字节流压包为标准 WAV 并编码为 Base64"""
@@ -296,6 +300,12 @@ class LearnMateNativeApp(ctk.CTk):
 
         self.is_live_call_active = False
         self.mic_stream = None
+
+        # 实时语音客户端与播放器
+        self._realtime_client = None
+        self._realtime_player = None
+        self._accumulated_ai_text_for_bubble = ""
+        self._current_ai_bubble_wrapper = None
 
         self.setup_ui()
 
@@ -576,7 +586,7 @@ class LearnMateNativeApp(ctk.CTk):
             ))
 
     def start_mic_capture(self):
-        """拉起 Windows 硬件麦克风录音流，极速 RMS 振幅计算、< 300ms 极速 VAD 静音截断并全自动进行对讲"""
+        """纯 PCM 帧直推模式：每帧直接发往 DashScope Realtime WebSocket，零客户端 VAD"""
         if not PYAUDIO_AVAILABLE:
             return
 
@@ -588,51 +598,27 @@ class LearnMateNativeApp(ctk.CTk):
                     channels=1,
                     rate=16000,
                     input=True,
-                    frames_per_buffer=1024
+                    frames_per_buffer=1600  # 100ms @16kHz
                 )
                 self.mic_stream = stream
-                speech_buffer = bytearray()
-                silence_frames = 0
-                speaking_frames = 0
 
                 while self.is_live_call_active:
-                    data = stream.read(1024, exception_on_overflow=False)
+                    data = stream.read(1600, exception_on_overflow=False)
                     if not data:
                         continue
 
-                    # 实时计算音量 RMS 振幅
+                    # 实时音量可视化 (更新 2D 动漫伙伴波形动画)
                     import audioop
                     rms = audioop.rms(data, 2)
                     norm_vol = min(1.0, rms / 2000.0)
-
-                    # 1. 安全调度至 Tkinter 主线程更新 2D 动漫伙伴波形动画
                     def _update_avatar_ui(vol):
                         if self.avatar_canvas.avatar_state in ["listening", "idle"]:
                             self.avatar_canvas.audio_bars = [min(1.0, vol * random.uniform(0.6, 1.4)) for _ in range(8)]
-                    
                     self.after(0, _update_avatar_ui, norm_vol)
 
-                    # 2. VAD 极速语音活动检测 (RMS > 280 判定为说话)
-                    if rms > 280:
-                        speech_buffer.extend(data)
-                        speaking_frames += 1
-                        silence_frames = 0
-                        if self.avatar_canvas.avatar_state != "speaking":
-                            self.after(0, lambda: self.avatar_canvas.set_state("listening"))
-                    else:
-                        if speaking_frames >= 4:  # 已经采集到了有效说话声 (> 0.25秒)
-                            speech_buffer.extend(data)
-                            silence_frames += 1
-                            
-                            # 3. 连续 5 帧 (约 0.3 秒) 静音停顿，瞬间触发一整句语音发送！
-                            if silence_frames >= 5 and len(speech_buffer) >= 8000:
-                                audio_payload_pcm = bytes(speech_buffer)
-                                speech_buffer.clear()
-                                speaking_frames = 0
-                                silence_frames = 0
-                                
-                                # 线程池极速异步将语音发往 Qwen-Omni 引擎
-                                threading.Thread(target=self.process_hardware_speech_input, args=(audio_payload_pcm,), daemon=True).start()
+                    # PCM 帧直推 WebSocket — 零 VAD，零截断，服务端智能检测
+                    if self._realtime_client and self._realtime_client.is_connected:
+                        self._realtime_client.send_audio_frame(data)
 
                 stream.stop_stream()
                 stream.close()
@@ -642,70 +628,138 @@ class LearnMateNativeApp(ctk.CTk):
 
         threading.Thread(target=mic_thread_func, daemon=True).start()
 
-    def process_hardware_speech_input(self, pcm_bytes):
-        """直连 Qwen-Omni 原生多模态音频流，无冗余中间文字切块，直出高保真 24kHz 真人语音"""
-        try:
-            wav_b64 = pcm_to_wav_base64(pcm_bytes)
-            ai_text, audio_b64, user_asr = "", "", ""
-            
-            # 1. 优先尝试 HTTP REST/WebSocket API 管道
-            try:
-                req = urllib.request.Request(
-                    f"{SERVER_URL}/api/v1/voice/acoustic_chat",
-                    data=json.dumps({
-                        "student_id": "STU-2026",
-                        "voice_input_b64": wav_b64,
-                        "selected_voice_key": "cute"
-                    }).encode('utf-8'),
-                    headers={'Content-Type': 'application/json'}
-                )
-                with urllib.request.urlopen(req, timeout=6) as resp:
-                    data = json.loads(resp.read().decode('utf-8'))
-                    ai_text = data.get("ai_voice_response_text", "")
-                    audio_b64 = data.get("audio_data_url") or data.get("audio_b64", "")
-                    user_asr = data.get("student_input_transcript", "")
-            except Exception as net_err:
-                # 2. ⚡ 内存直连极速降级中枢 (Direct Native In-Memory Engine Fallback)
-                from backend.app.engine.voice_engine import voice_engine, VoiceChatRequest
-                resp_obj = voice_engine.process_voice_interaction(VoiceChatRequest(
-                    student_id="STU-2026",
-                    voice_audio_b64=wav_b64,
-                    selected_voice_key="cute"
-                ))
-                ai_text = resp_obj.ai_voice_response_text
-                audio_b64 = resp_obj.audio_data_url or ""
-                user_asr = resp_obj.student_input_transcript or ""
+    # --- 实时语音回调处理器 ---
+    def _on_realtime_ai_audio(self, pcm_bytes):
+        """收到 AI 音频帧 — 直接放入播放队列"""
+        if self._realtime_player:
+            self._realtime_player.enqueue(pcm_bytes)
+        # 更新动漫伙伴为说话状态
+        self.after(0, lambda: self.avatar_canvas.set_state("speaking"))
 
-            # 3. 原生电话直连输出：干净推流，绝不出中间无用切块气泡
-            if user_asr and not user_asr.startswith("（"):
-                self.after(0, lambda text=user_asr: self.append_chat_bubble("🎙️ [主帅语音直连]", text, is_user=True))
+    def _on_realtime_ai_text(self, text_delta):
+        """收到 AI 文字增量 — 实时更新聊天气泡"""
+        self._accumulated_ai_text_for_bubble += text_delta
+        full_text = self._accumulated_ai_text_for_bubble
 
-            if ai_text:
-                self.after(0, lambda t=ai_text, a=audio_b64: self.on_ai_reply_received(t, a))
+        def _update_bubble():
+            if self._current_ai_bubble_wrapper:
+                # 更新现有气泡的文字
+                for child in self._current_ai_bubble_wrapper.winfo_children():
+                    for label in child.winfo_children():
+                        if isinstance(label, ctk.CTkLabel):
+                            label.configure(text=f"\U0001f98a [\u667a\u5c0f\u4f34]\n{full_text}")
+                            break
+            else:
+                # 创建新气泡
+                self._create_streaming_ai_bubble(full_text)
 
-        except Exception as e:
-            err_msg = f"语音处理提示: 请大声清晰说话并停顿 0.7 秒哦！({e})"
-            self.after(0, lambda text=err_msg: self.append_chat_bubble("💡 [智小伴守护中]", text, is_user=False))
+        self.after(0, _update_bubble)
+
+    def _on_realtime_ai_text_done(self, full_text):
+        """收到 AI 文字完成 — 定稿气泡"""
+        self._accumulated_ai_text_for_bubble = ""
+        self._current_ai_bubble_wrapper = None
+
+    def _on_realtime_user_transcript(self, transcript):
+        """收到用户语音转写 — 显示用户说了什么"""
+        self.after(0, lambda t=transcript: self.append_chat_bubble("\U0001f3a4 [\u4e3b\u5e05\u8bed\u97f3]", t, is_user=True))
+
+    def _on_realtime_state_change(self, state):
+        """实时语音状态变化"""
+        def _update_ui():
+            if state == "listening":
+                self.avatar_canvas.set_state("listening")
+                short_mic = self.mic_hardware_name if len(self.mic_hardware_name) <= 15 else self.mic_hardware_name[:12] + "..."
+                self.status_dot.configure(text=f"\U0001f3a4 [{short_mic}] \u5b9e\u65f6\u5bf9\u8bb2\u4e2d", text_color="#10b981")
+            elif state == "ai_speaking":
+                self.avatar_canvas.set_state("speaking")
+                self.status_dot.configure(text="\U0001f5e3\ufe0f \u667a\u5c0f\u4f34\u8bed\u97f3\u56de\u590d\u4e2d", text_color="#818cf8")
+                # 准备新的流式气泡
+                self._accumulated_ai_text_for_bubble = ""
+                self._current_ai_bubble_wrapper = None
+            elif state == "connected":
+                self.avatar_canvas.set_state("listening")
+            elif state == "error":
+                self.status_dot.configure(text="\u26a0\ufe0f \u8bed\u97f3\u8fde\u63a5\u5f02\u5e38", text_color="#ef4444")
+        self.after(0, _update_ui)
+
+    def _on_realtime_error(self, error_msg):
+        """实时语音\u9519\u8bef"""
+        self.after(0, lambda msg=error_msg: self.append_chat_bubble("\u26a0\ufe0f [\u7cfb\u7edf]", msg, is_user=False))
+
+    def _create_streaming_ai_bubble(self, text):
+        """创建\u4e00\u4e2a\u6d41\u5f0f\u66f4\u65b0\u7684 AI \u804a\u5929\u6c14\u6ce1"""
+        wrapper = ctk.CTkFrame(self.chat_scroll, fg_color="transparent")
+        wrapper.pack(fill="x", pady=6, padx=10)
+        bubble = ctk.CTkFrame(wrapper, fg_color="#1e1b4b", corner_radius=14)
+        bubble.pack(side="left", anchor="w", padx=5)
+        msg_label = ctk.CTkLabel(
+            bubble,
+            text=f"\U0001f98a [\u667a\u5c0f\u4f34]\n{text}",
+            font=ctk.CTkFont(size=13),
+            text_color="#ffffff",
+            justify="left",
+            wraplength=650
+        )
+        msg_label.pack(padx=14, pady=10)
+        self._current_ai_bubble_wrapper = wrapper
 
     def toggle_live_call(self):
         try:
             if not self.is_live_call_active:
+                # --- 开启实时通话 ---
                 self.is_live_call_active = True
-                self.call_toggle_btn.configure(text="⏹️ 挂断 24kHz 原生通话", fg_color="#ef4444")
-                self.avatar_canvas.set_state("listening")
-                short_mic = self.mic_hardware_name if len(self.mic_hardware_name) <= 15 else self.mic_hardware_name[:12] + "..."
-                self.status_dot.configure(text=f"🎙️ [{short_mic}] 硬件实时对讲中", text_color="#10b981")
-                self.append_chat_bubble("🟢 [系统通知]", f"已成功开启 Qwen-Omni 全双工电话对讲！说话后停顿 0.7s 即可收到智小伴语音解答...", is_user=False)
-                self.start_mic_capture()
+                self.call_toggle_btn.configure(text="\u23f9\ufe0f \u6302\u65ad\u5b9e\u65f6\u901a\u8bdd", fg_color="#ef4444")
+
+                # 创建并启动实时音\u9891\u64ad\u653e\u5668
+                self._realtime_player = RealtimeAudioPlayer(sample_rate=24000, channels=1)
+                self._realtime_player.start()
+
+                # 创建并连接实时语\u97f3\u5ba2\u6237\u7aef
+                self._realtime_client = RealtimeVoiceClient(
+                    on_ai_audio=self._on_realtime_ai_audio,
+                    on_ai_text=self._on_realtime_ai_text,
+                    on_ai_text_done=self._on_realtime_ai_text_done,
+                    on_user_transcript=self._on_realtime_user_transcript,
+                    on_state_change=self._on_realtime_state_change,
+                    on_error=self._on_realtime_error,
+                )
+
+                def _connect_and_start():
+                    if self._realtime_client.connect():
+                        self.after(0, lambda: self.append_chat_bubble(
+                            "\U0001f7e2 [\u7cfb\u7edf\u901a\u77e5]",
+                            "\u5b9e\u65f6\u8bed\u97f3\u901a\u8bdd\u5df2\u8fde\u63a5\uff01\u76f4\u63a5\u8bf4\u8bdd\u5373\u53ef\uff0c\u667a\u5c0f\u4f34\u4f1a\u5b9e\u65f6\u8bed\u97f3\u56de\u590d\u3002",
+                            is_user=False
+                        ))
+                        self.start_mic_capture()
+                    else:
+                        self.after(0, lambda: (
+                            self.append_chat_bubble("\u26a0\ufe0f [\u7cfb\u7edf]", "\u5b9e\u65f6\u8bed\u97f3\u8fde\u63a5\u5931\u8d25\uff0c\u8bf7\u68c0\u67e5\u7f51\u7edc\u548c API Key", is_user=False),
+                            setattr(self, 'is_live_call_active', False),
+                            self.call_toggle_btn.configure(text="\U0001f4de \u5f00\u542f\u5b9e\u65f6\u8bed\u97f3\u901a\u8bdd", fg_color="#10b981")
+                        ))
+
+                threading.Thread(target=_connect_and_start, daemon=True).start()
+
             else:
+                # --- 挂\u65ad\u5b9e\u65f6\u901a\u8bdd ---
                 self.is_live_call_active = False
-                self.call_toggle_btn.configure(text="📞 开启 24kHz 原生语音对讲", fg_color="#10b981")
+                self.call_toggle_btn.configure(text="\U0001f4de \u5f00\u542f\u5b9e\u65f6\u8bed\u97f3\u901a\u8bdd", fg_color="#10b981")
+
+                if self._realtime_client:
+                    self._realtime_client.disconnect()
+                    self._realtime_client = None
+                if self._realtime_player:
+                    self._realtime_player.stop()
+                    self._realtime_player = None
+
                 self.avatar_canvas.set_state("idle")
                 short_mic = self.mic_hardware_name if len(self.mic_hardware_name) <= 15 else self.mic_hardware_name[:12] + "..."
-                self.status_dot.configure(text=f"🟢 麦克风: {short_mic} 就绪", text_color="#10b981")
-                self.append_chat_bubble("🔴 [系统通知]", "已结束实时通话。", is_user=False)
+                self.status_dot.configure(text=f"\U0001f7e2 \u9ea6\u514b\u98ce: {short_mic} \u5c31\u7eea", text_color="#10b981")
+                self.append_chat_bubble("\U0001f534 [\u7cfb\u7edf\u901a\u77e5]", "\u5df2\u7ed3\u675f\u5b9e\u65f6\u901a\u8bdd\u3002", is_user=False)
         except Exception as e:
-            messagebox.showerror("语音通话异常", f"开启语音通话失败: {e}")
+            messagebox.showerror("\u8bed\u97f3\u901a\u8bdd\u5f02\u5e38", f"\u5f00\u542f\u8bed\u97f3\u901a\u8bdd\u5931\u8d25: {e}")
 
     # ----------------------------------------------------------------------
     # 面板 2: 📊 ZPD 发展区与雷达图 (Planner Panel)

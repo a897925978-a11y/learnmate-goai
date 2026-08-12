@@ -422,7 +422,7 @@ class LearnMateNativeApp(ctk.CTk):
         title = ctk.CTkLabel(header, text="🎙️ Qwen-Omni 全双工流式实时对讲中枢", font=ctk.CTkFont(size=18, weight="bold"), text_color="#f8fafc")
         title.pack(side="left", padx=20, pady=12)
 
-        self.call_toggle_btn = ctk.CTkButton(header, text="📞 开启 24kHz 原生语音对讲", font=ctk.CTkFont(size=14, weight="bold"), fg_color="#10b981", hover_color="#059669", command=self.toggle_live_call)
+        self.call_toggle_btn = ctk.CTkButton(header, text="📞 开启实时语音通话", font=ctk.CTkFont(size=14, weight="bold"), fg_color="#10b981", hover_color="#059669", command=self.toggle_live_call)
         self.call_toggle_btn.pack(side="right", padx=20, pady=12)
 
         # 原生聊天框 ScrollableFrame
